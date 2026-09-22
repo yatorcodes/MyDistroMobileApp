@@ -117,4 +117,5 @@ Command line (PowerShell), if `JAVA_HOME` points at JDK 17/21:
 
 ## License
 
-Private / proprietary — all rights reserved unless otherwise stated by the repository owner.
+Private / proprietary — all rights reserved.
+
