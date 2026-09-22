@@ -42,6 +42,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // Needed so NetworkModule can silence HTTP body logging in release builds.
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.1"
@@ -71,11 +73,20 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
+    // Material icons — the design leans on a consistent outlined icon set
+    implementation("androidx.compose.material:material-icons-extended")
+
     // Navigation
     implementation("androidx.navigation:navigation-compose:2.8.0")
 
     // ViewModel + Compose integration
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
+    // collectAsStateWithLifecycle — stops collection when the screen is backgrounded
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
+
+    // Image loading. 2.6.0 is the last line built against Kotlin 1.9, matching
+    // this project's pinned Kotlin 1.9.0.
+    implementation("io.coil-kt:coil-compose:2.6.0")
 
     // Hilt (dependency injection)
     // Hilt (dependency injection) — 2.48, matched to Kotlin 1.9.0

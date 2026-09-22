@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    UNUSED BY COMPOSE — kept as a reference for a future XML/View backdrop.
+
+    Compose painterResource cannot load layer-list / shape drawables. The live
+    hero background is drawn in HeroBackground() with Compose Brushes. Do not
+    wire this resource back into painterResource or the app will crash on launch.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="60"
+                android:startColor="#0B1930"
+                android:centerColor="#1B3557"
+                android:endColor="#7A3418"
+                android:type="linear" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:centerX="0.72"
+                android:centerY="0.78"
+                android:gradientRadius="60%p"
+                android:startColor="#66FF641F"
+                android:endColor="#000B1930"
+                android:type="radial" />
+        </shape>
+    </item>
+</layer-list>

@@ -5,7 +5,9 @@ coreKtx = "1.10.1"
 junit = "4.13.2"
 junitVersion = "1.1.5"
 espressoCore = "3.5.1"
-lifecycleRuntimeKtx = "2.6.1"
+# Aligned with lifecycle-viewmodel-compose below; mixing 2.6.x runtime with a
+# 2.8.x viewmodel artifact is a known source of runtime NoSuchMethodError.
+lifecycleRuntimeKtx = "2.8.4"
 activityCompose = "1.8.0"
 composeBom = "2024.04.01"
 
