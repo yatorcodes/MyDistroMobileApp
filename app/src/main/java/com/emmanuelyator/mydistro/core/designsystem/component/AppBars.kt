@@ -111,7 +111,9 @@ fun MyDistroBottomBar(
             tonalElevation = 0.dp
         ) {
             items.forEach { item ->
-                val selected = currentRoute == item.route
+                // currentRoute from Navigation is the pattern (e.g. driver/map?tripId={tripId})
+                // item.route is the base route (e.g. driver/map). 
+                val selected = currentRoute?.substringBefore("?") == item.route.substringBefore("?")
                 NavigationBarItem(
                     selected = selected,
                     onClick = { onItemClick(item) },

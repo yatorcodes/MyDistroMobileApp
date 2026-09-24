@@ -15,7 +15,11 @@ import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.NotificationsNone
+import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.LocalShipping
 import androidx.compose.material.icons.outlined.Map
@@ -125,9 +129,15 @@ fun MyDistroNavGraph(
 
 private fun NavGraphBuilder.onboardingGraph(navController: NavHostController) {
     composable(Routes.SPLASH) {
+        val viewModel: com.emmanuelyator.mydistro.feature.splash.SplashViewModel = androidx.hilt.navigation.compose.hiltViewModel()
         SplashScreen(
             onFinished = {
-                navController.navigate(Routes.ROLE_SELECTION) {
+                val nextRoute = viewModel.getNextRoute(
+                    roleSelectionRoute = Routes.ROLE_SELECTION,
+                    driverTripsRoute = Routes.DRIVER_TRIPS,
+                    customerHomeRoute = Routes.CUSTOMER_HOME
+                )
+                navController.navigate(nextRoute) {
                     // The splash must not be reachable by back.
                     popUpTo(Routes.SPLASH) { inclusive = true }
                 }
@@ -181,42 +191,94 @@ private fun NavGraphBuilder.driverGraph(navController: NavHostController) {
         )
     }
 
-    composable(Routes.DRIVER_MAP) {
-        ComingSoonScreen(
-            title = "Map",
-            description = "Live trip tracking will appear here. It needs a maps SDK " +
-                "and the driver location service, which are a later phase.",
-            icon = Icons.Outlined.Map
-        )
+    composable(
+        route = Routes.DRIVER_MAP,
+        arguments = listOf(navArgument(Routes.Args.TRIP_ID) {
+            type = NavType.StringType
+            nullable = true
+        })
+    ) {
+        com.emmanuelyator.mydistro.feature.driver.map.DriverMapRoute()
     }
 
-    composable(Routes.DRIVER_HISTORY) {
-        ComingSoonScreen(
-            title = "History",
-            description = "Completed trips are available now under the " +
-                "\"Trip History\" tab on your trips screen.",
-            icon = Icons.Outlined.History
-        )
-    }
+
 
     composable(Routes.DRIVER_PROFILE) {
-        ComingSoonScreen(
-            title = "Profile",
-            description = "Driver profile, vehicle details and sign-out will live here.",
-            icon = Icons.Outlined.Person
+        val viewModel: com.emmanuelyator.mydistro.feature.driver.profile.DriverProfileViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+        com.emmanuelyator.mydistro.feature.driver.profile.DriverProfileRoute(
+            onSignOut = {
+                viewModel.logout {
+                    navController.navigate(Routes.ROLE_SELECTION) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            },
+            onEditProfile = { navController.navigate(Routes.DRIVER_EDIT_PROFILE) },
+            onNotifications = { navController.navigate(Routes.DRIVER_NOTIFICATIONS) },
+            onPrivacySecurity = { navController.navigate(Routes.DRIVER_PRIVACY_SECURITY) },
+            onHelpSupport = { navController.navigate(Routes.DRIVER_HELP_SUPPORT) }
+        )
+    }
+
+    composable(Routes.DRIVER_EDIT_PROFILE) {
+        com.emmanuelyator.mydistro.feature.driver.profile.DriverEditProfileRoute(
+            onBack = navController::popBackStackSafely
+        )
+    }
+
+    composable(Routes.DRIVER_NOTIFICATIONS) {
+        com.emmanuelyator.mydistro.feature.driver.profile.DriverNotificationsRoute(
+            onNotificationClick = { notificationId ->
+                navController.navigate(Routes.driverNotificationDetails(notificationId))
+            },
+            onBack = navController::popBackStackSafely
+        )
+    }
+
+    composable(
+        route = Routes.DRIVER_NOTIFICATION_DETAILS,
+        arguments = listOf(navArgument("notificationId") { type = NavType.StringType })
+    ) { backStackEntry ->
+        val id = backStackEntry.arguments?.getString("notificationId") ?: ""
+        
+        // Mark as read immediately when opened
+        androidx.compose.runtime.LaunchedEffect(id) {
+            val index = com.emmanuelyator.mydistro.feature.driver.profile.MockNotificationData.notifications.indexOfFirst { it.id == id }
+            if (index != -1 && !com.emmanuelyator.mydistro.feature.driver.profile.MockNotificationData.notifications[index].isRead) {
+                com.emmanuelyator.mydistro.feature.driver.profile.MockNotificationData.notifications[index] = 
+                    com.emmanuelyator.mydistro.feature.driver.profile.MockNotificationData.notifications[index].copy(isRead = true)
+            }
+        }
+        
+        com.emmanuelyator.mydistro.feature.driver.profile.DriverNotificationDetailsRoute(
+            notificationId = id,
+            onBack = navController::popBackStackSafely
+        )
+    }
+
+    composable(Routes.DRIVER_PRIVACY_SECURITY) {
+        com.emmanuelyator.mydistro.feature.driver.profile.DriverPrivacySecurityRoute(
+            onBack = navController::popBackStackSafely
+        )
+    }
+
+    composable(Routes.DRIVER_HELP_SUPPORT) {
+        com.emmanuelyator.mydistro.feature.driver.profile.DriverHelpSupportRoute(
+            onBack = navController::popBackStackSafely
         )
     }
 
     composable(
         route = Routes.DRIVER_TRIP_DETAILS,
         arguments = listOf(navArgument(Routes.Args.TRIP_ID) { type = NavType.StringType })
-    ) {
+    ) { backStackEntry ->
+        val tripId = backStackEntry.arguments?.getString(Routes.Args.TRIP_ID) ?: ""
         TripDetailsRoute(
             onBack = navController::popBackStackSafely,
-            onConfirmDelivery = { tripId, stopId ->
-                navController.navigate(Routes.driverDeliveryConfirmation(tripId, stopId))
+            onConfirmDelivery = { tId, stopId ->
+                navController.navigate(Routes.driverDeliveryConfirmation(tId, stopId))
             },
-            onViewMap = { navController.navigate(Routes.DRIVER_MAP) }
+            onViewMap = { navController.navigate(Routes.driverMap(tripId)) }
         )
     }
 
@@ -317,16 +379,10 @@ private fun driverBottomNavItems(): List<BottomNavItem> = listOf(
         unselectedIcon = Icons.Outlined.LocalShipping
     ),
     BottomNavItem(
-        route = Routes.DRIVER_MAP,
+        route = Routes.DRIVER_MAP_BASE,
         label = "Map",
         selectedIcon = Icons.Filled.Map,
         unselectedIcon = Icons.Outlined.Map
-    ),
-    BottomNavItem(
-        route = Routes.DRIVER_HISTORY,
-        label = "History",
-        selectedIcon = Icons.Filled.History,
-        unselectedIcon = Icons.Outlined.History
     ),
     BottomNavItem(
         route = Routes.DRIVER_PROFILE,

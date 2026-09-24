@@ -28,6 +28,23 @@ class MockAuthRepository @Inject constructor(
     private val _session = MutableStateFlow<AuthSession?>(null)
     override val session: StateFlow<AuthSession?> = _session.asStateFlow()
 
+    init {
+        val savedToken = tokenStore.accessToken()
+        if (savedToken == FAKE_DRIVER_TOKEN) {
+            _session.value = AuthSession(
+                userId = demoDriver.id,
+                role = UserRole.DRIVER,
+                displayName = demoDriver.fullName
+            )
+        } else if (savedToken == FAKE_CUSTOMER_TOKEN) {
+            _session.value = AuthSession(
+                userId = "cust-001",
+                role = UserRole.CUSTOMER,
+                displayName = "Grace Wanjiku"
+            )
+        }
+    }
+
     override suspend fun loginDriver(
         phoneOrEmail: String,
         password: String

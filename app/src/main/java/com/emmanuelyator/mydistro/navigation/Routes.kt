@@ -17,9 +17,19 @@ object Routes {
     const val DRIVER_LOGIN = "driver/login"
     const val DRIVER_PASSWORD_SETUP = "driver/password_setup"
     const val DRIVER_TRIPS = "driver/trips"
-    const val DRIVER_MAP = "driver/map"
+    const val DRIVER_MAP_BASE = "driver/map"
+    const val DRIVER_MAP = "$DRIVER_MAP_BASE?${Args.TRIP_ID}={${Args.TRIP_ID}}"
+    fun driverMap(tripId: String? = null): String {
+        return if (tripId != null) "$DRIVER_MAP_BASE?${Args.TRIP_ID}=$tripId" else DRIVER_MAP_BASE
+    }
     const val DRIVER_HISTORY = "driver/history"
     const val DRIVER_PROFILE = "driver/profile"
+    const val DRIVER_EDIT_PROFILE = "driver/edit_profile"
+    const val DRIVER_NOTIFICATIONS = "driver/notifications"
+    const val DRIVER_NOTIFICATION_DETAILS = "driver/notifications/{notificationId}"
+    fun driverNotificationDetails(id: String) = "driver/notifications/$id"
+    const val DRIVER_PRIVACY_SECURITY = "driver/privacy_security"
+    const val DRIVER_HELP_SUPPORT = "driver/help_support"
 
     private const val DRIVER_TRIP_DETAILS_BASE = "driver/trip"
     const val DRIVER_TRIP_DETAILS = "$DRIVER_TRIP_DETAILS_BASE/{${Args.TRIP_ID}}"
@@ -49,8 +59,7 @@ object Routes {
 /** Destinations that make up the driver's bottom-navigation shell. */
 val DriverShellRoutes = setOf(
     Routes.DRIVER_TRIPS,
-    Routes.DRIVER_MAP,
-    Routes.DRIVER_HISTORY,
+    Routes.DRIVER_MAP_BASE,
     Routes.DRIVER_PROFILE
 )
 
