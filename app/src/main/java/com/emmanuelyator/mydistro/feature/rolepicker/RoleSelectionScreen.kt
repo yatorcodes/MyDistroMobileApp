@@ -1,6 +1,8 @@
 package com.emmanuelyator.mydistro.feature.rolepicker
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,11 +16,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Factory
 import androidx.compose.material.icons.outlined.LocalShipping
 import androidx.compose.material.icons.outlined.Storefront
@@ -32,177 +34,190 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.emmanuelyator.mydistro.core.designsystem.component.MyDistroCard
-import com.emmanuelyator.mydistro.core.designsystem.component.MyDistroLogo
-import com.emmanuelyator.mydistro.core.designsystem.component.MyDistroTextButton
-import com.emmanuelyator.mydistro.core.designsystem.theme.Dimens
+import androidx.compose.ui.unit.sp
+import com.emmanuelyator.mydistro.core.designsystem.component.DiamondLogo
+import com.emmanuelyator.mydistro.core.designsystem.component.HeroBackground
 import com.emmanuelyator.mydistro.core.designsystem.theme.MyDistroTheme
-import com.emmanuelyator.mydistro.core.designsystem.theme.Spacing
 import com.emmanuelyator.mydistro.core.designsystem.theme.StatusBarIcons
 import com.emmanuelyator.mydistro.core.model.UserRole
 
-/** Presentation data for one role row. */
-private data class RoleOption(
-    val role: UserRole,
-    val title: String,
-    val description: String,
-    val icon: ImageVector,
-    val accent: Color
-)
-
 /**
- * Entry fork. Driver and Customer continue into the app; Distributor and
- * Factory are shown because operators who install the wrong app need to be told
- * where to go, and tapping them explains rather than silently failing.
+ * Role Selection — navy hero theme shared with Splash / Login, so the
+ * onboarding flow stays continuous without relying on a role-specific photo.
+ *
+ * When a licensed "everyone in the chain" photo is ready, swap
+ * [HeroBackground] for [PhotoHeroBackground] with that asset.
  */
 @Composable
 fun RoleSelectionScreen(
     onRoleSelected: (UserRole) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    StatusBarIcons(dark = true)
+    StatusBarIcons(dark = false)
 
-    val options = roleOptions()
-
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
+    HeroBackground(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
-                // Caps the column so it stays readable rather than stretched on
-                // tablets and unfolded foldables.
-                .widthIn(max = Dimens.maxContentWidth)
-                .align(Alignment.TopCenter)
-                .verticalScroll(rememberScrollState())
+                .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(horizontal = Dimens.screenPadding)
-                .padding(top = Spacing.xxxl, bottom = Spacing.xxl)
+                .padding(horizontal = 22.dp)
+                .padding(top = 24.dp, bottom = 20.dp)
         ) {
-            MyDistroLogo(markSize = 32.dp)
-            Spacer(Modifier.height(Spacing.xxxl))
-
-            Text(
-                text = "Welcome to MyDistro",
-                style = MaterialTheme.typography.headlineLarge,
-                color = MyDistroTheme.colors.textPrimary
-            )
-            Spacer(Modifier.height(Spacing.sm))
-            Text(
-                text = "Choose your role to continue",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MyDistroTheme.colors.textSecondary
-            )
-            Spacer(Modifier.height(Spacing.xxl))
-
-            options.forEach { option ->
-                RoleCard(
-                    option = option,
-                    onClick = { onRoleSelected(option.role) },
-                    modifier = Modifier.padding(bottom = Spacing.md)
-                )
-            }
-
-            Spacer(Modifier.height(Spacing.lg))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                DiamondLogo(modifier = Modifier.size(30.dp))
+                Spacer(Modifier.width(10.dp))
                 Text(
-                    text = "Need help?",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MyDistroTheme.colors.textSecondary
+                    text = "MyDistro",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    letterSpacing = (-0.3).sp
                 )
-                MyDistroTextButton(text = "Contact support", onClick = {}, accent = true)
             }
+
+            Spacer(Modifier.height(36.dp))
+
+            Text(
+                text = "Welcome to MyDistro",
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                letterSpacing = (-0.3).sp
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "Choose your role to continue",
+                fontSize = 15.sp,
+                color = Color.White.copy(alpha = 0.78f)
+            )
+
+            Spacer(Modifier.height(28.dp))
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                RoleCard(
+                    title = "Driver",
+                    subtitle = "Manage trips and deliveries",
+                    icon = Icons.Outlined.LocalShipping,
+                    badgeColor = Color(0xFF60A5FA),
+                    onClick = { onRoleSelected(UserRole.DRIVER) }
+                )
+                RoleCard(
+                    title = "Customer",
+                    subtitle = "Order products and track",
+                    icon = Icons.Outlined.Storefront,
+                    badgeColor = Color(0xFF34D399),
+                    onClick = { onRoleSelected(UserRole.CUSTOMER) }
+                )
+                RoleCard(
+                    title = "Distributor",
+                    subtitle = "Manage orders and stock",
+                    icon = Icons.Outlined.Warehouse,
+                    badgeColor = Color(0xFFC084FC),
+                    onClick = { onRoleSelected(UserRole.DISTRIBUTOR) }
+                )
+                RoleCard(
+                    title = "Factory / Manufacturer",
+                    subtitle = "Manage production and stock",
+                    icon = Icons.Outlined.Factory,
+                    badgeColor = MaterialTheme.colorScheme.secondary,
+                    onClick = { onRoleSelected(UserRole.FACTORY) }
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            Text(
+                text = "Need help? Contact support",
+                fontSize = 12.sp,
+                color = Color.White.copy(alpha = 0.55f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 4.dp),
+                textAlign = TextAlign.Center
+            )
         }
     }
 }
 
 @Composable
 private fun RoleCard(
-    option: RoleOption,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    badgeColor: Color,
+    onClick: () -> Unit
 ) {
-    MyDistroCard(modifier = modifier, onClick = onClick) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    val glass = Color.White.copy(alpha = 0.10f)
+    val glassBorder = Color.White.copy(alpha = 0.22f)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(glass)
+            .border(1.dp, glassBorder, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f)
+        ) {
             Box(
                 modifier = Modifier
                     .size(48.dp)
-                    .clip(MaterialTheme.shapes.small)
-                    .background(option.accent.copy(alpha = 0.12f)),
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(badgeColor.copy(alpha = 0.22f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = option.icon,
+                    imageVector = icon,
                     contentDescription = null,
-                    tint = option.accent,
-                    modifier = Modifier.size(Dimens.iconLg)
+                    tint = badgeColor,
+                    modifier = Modifier.size(24.dp)
                 )
             }
-            Spacer(Modifier.width(Spacing.md))
-            Column(modifier = Modifier.weight(1f)) {
+            Spacer(Modifier.width(14.dp))
+            Column {
                 Text(
-                    text = option.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MyDistroTheme.colors.textPrimary
+                    text = title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
                 )
-                Spacer(Modifier.height(Spacing.xxs))
+                Spacer(Modifier.height(2.dp))
                 Text(
-                    text = option.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MyDistroTheme.colors.textSecondary
+                    text = subtitle,
+                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.65f)
                 )
             }
-            Icon(
-                imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MyDistroTheme.colors.textTertiary
-            )
         }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = Color.White.copy(alpha = 0.55f)
+        )
     }
 }
 
-@Composable
-private fun roleOptions(): List<RoleOption> = listOf(
-    RoleOption(
-        role = UserRole.DRIVER,
-        title = "Driver",
-        description = "Manage trips and deliveries",
-        icon = Icons.Outlined.LocalShipping,
-        accent = MyDistroTheme.colors.info
-    ),
-    RoleOption(
-        role = UserRole.CUSTOMER,
-        title = "Customer",
-        description = "Order products and track delivery",
-        icon = Icons.Outlined.Storefront,
-        accent = MyDistroTheme.colors.success
-    ),
-    RoleOption(
-        role = UserRole.DISTRIBUTOR,
-        title = "Distributor",
-        description = "Manage orders and stock on the web console",
-        icon = Icons.Outlined.Warehouse,
-        accent = MaterialTheme.colorScheme.primary
-    ),
-    RoleOption(
-        role = UserRole.FACTORY,
-        title = "Factory / Manufacturer",
-        description = "Manage production and stock on the web console",
-        icon = Icons.Outlined.Factory,
-        accent = MaterialTheme.colorScheme.secondary
-    )
-)
-
-@Preview(showBackground = true, backgroundColor = 0xFFF7F8FA)
+@Preview(showBackground = true, heightDp = 800, widthDp = 390)
 @Composable
 private fun RoleSelectionPreview() {
     MyDistroTheme {

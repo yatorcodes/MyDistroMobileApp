@@ -18,14 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * PROTOTYPE ONLY — credentials are compared against constants in this file.
  *
- * Nothing here talks to a server, nothing is authenticated, and the "token" is a
- * fabricated string. This exists so the driver vertical slice can be built and
- * demoed before the Spring Boot API exists.
- *
- * Replacing it: implement [AuthRepository] over
- * [com.emmanuelyator.mydistro.core.network.ApiService] and change the single
- * `@Binds` in [com.emmanuelyator.mydistro.feature.auth.di.AuthModule]. No
- * ViewModel or Composable changes are required.
+ * Nothing here talks to a server. Replacing it is a single Hilt `@Binds` change.
  */
 @Singleton
 class MockAuthRepository @Inject constructor(
@@ -39,31 +32,45 @@ class MockAuthRepository @Inject constructor(
         phoneOrEmail: String,
         password: String
     ): DataResult<AuthSession> {
-        // Stand in for network latency so loading states are actually exercised
-        // during development rather than flashing past.
         delay(1_200)
-
-        val identifier = phoneOrEmail.trim()
-        val matchesPhone = Validators.toE164Kenya(identifier) == Validators.toE164Kenya(DEMO_PHONE)
-        val matchesEmail = identifier.equals(DEMO_EMAIL, ignoreCase = true)
-
-        if (!(matchesPhone || matchesEmail) || password != DEMO_PASSWORD) {
-            return DataResult.Failure(AppError.InvalidCredentials())
-        }
-
-        tokenStore.save(FAKE_TOKEN)
-        val session = AuthSession(
-            userId = demoDriver.id,
-            role = UserRole.DRIVER,
-            displayName = demoDriver.fullName
+        return authenticate(
+            phoneOrEmail = phoneOrEmail,
+            password = password,
+            expectedPhone = DemoCredentials.PHONE,
+            expectedEmail = DemoCredentials.EMAIL,
+            expectedPassword = DemoCredentials.PASSWORD,
+            session = AuthSession(
+                userId = demoDriver.id,
+                role = UserRole.DRIVER,
+                displayName = demoDriver.fullName
+            ),
+            token = FAKE_DRIVER_TOKEN
         )
-        _session.value = session
-        return DataResult.Success(session)
+    }
+
+    override suspend fun loginCustomer(
+        phoneOrEmail: String,
+        password: String
+    ): DataResult<AuthSession> {
+        delay(1_200)
+        return authenticate(
+            phoneOrEmail = phoneOrEmail,
+            password = password,
+            expectedPhone = DemoCustomerCredentials.PHONE,
+            expectedEmail = DemoCustomerCredentials.EMAIL,
+            expectedPassword = DemoCustomerCredentials.PASSWORD,
+            session = AuthSession(
+                userId = "cust-001",
+                role = UserRole.CUSTOMER,
+                displayName = "Grace Wanjiku"
+            ),
+            token = FAKE_CUSTOMER_TOKEN
+        )
     }
 
     override suspend fun currentDriver(): DataResult<Driver> {
         val active = _session.value ?: return DataResult.Failure(AppError.Unauthorized)
-        return if (active.userId == demoDriver.id) {
+        return if (active.role == UserRole.DRIVER && active.userId == demoDriver.id) {
             DataResult.Success(demoDriver)
         } else {
             DataResult.Failure(AppError.Unauthorized)
@@ -75,14 +82,32 @@ class MockAuthRepository @Inject constructor(
         _session.value = null
     }
 
-    private companion object {
-        // Surfaced on the login screen as an explicitly labelled demo hint.
-        const val DEMO_PHONE = "0712345678"
-        const val DEMO_EMAIL = "alex.mwangi@mydistro.co.ke"
-        const val DEMO_PASSWORD = "driver123"
+    private fun authenticate(
+        phoneOrEmail: String,
+        password: String,
+        expectedPhone: String,
+        expectedEmail: String,
+        expectedPassword: String,
+        session: AuthSession,
+        token: String
+    ): DataResult<AuthSession> {
+        val identifier = phoneOrEmail.trim()
+        val matchesPhone =
+            Validators.toE164Kenya(identifier) == Validators.toE164Kenya(expectedPhone)
+        val matchesEmail = identifier.equals(expectedEmail, ignoreCase = true)
 
-        /** Not a JWT. Just proves the interceptor wiring works end to end. */
-        const val FAKE_TOKEN = "mock-token-not-a-real-jwt"
+        if (!(matchesPhone || matchesEmail) || password != expectedPassword) {
+            return DataResult.Failure(AppError.InvalidCredentials())
+        }
+
+        tokenStore.save(token)
+        _session.value = session
+        return DataResult.Success(session)
+    }
+
+    private companion object {
+        const val FAKE_DRIVER_TOKEN = "mock-driver-token-not-a-real-jwt"
+        const val FAKE_CUSTOMER_TOKEN = "mock-customer-token-not-a-real-jwt"
 
         val demoDriver = Driver(
             id = "drv-001",
@@ -93,8 +118,14 @@ class MockAuthRepository @Inject constructor(
     }
 }
 
-/** Shown on the login screen so the demo credentials are never a secret. */
 object DemoCredentials {
     const val PHONE = "0712345678"
+    const val EMAIL = "alex.mwangi@mydistro.co.ke"
     const val PASSWORD = "driver123"
+}
+
+object DemoCustomerCredentials {
+    const val PHONE = "0722001122"
+    const val EMAIL = "grace@hardware.co.ke"
+    const val PASSWORD = "customer123"
 }

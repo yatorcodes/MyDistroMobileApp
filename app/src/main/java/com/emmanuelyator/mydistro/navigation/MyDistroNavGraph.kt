@@ -9,28 +9,37 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.LocalShipping
 import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import androidx.navigation.NavType
 import com.emmanuelyator.mydistro.core.designsystem.component.BottomNavItem
 import com.emmanuelyator.mydistro.core.designsystem.component.MyDistroBottomBar
 import com.emmanuelyator.mydistro.core.model.UserRole
+import com.emmanuelyator.mydistro.feature.customer.home.CustomerHomeRoute
+import com.emmanuelyator.mydistro.feature.customer.login.CustomerLoginRoute
 import com.emmanuelyator.mydistro.feature.driver.deliveryconfirmation.DeliveryConfirmationRoute
 import com.emmanuelyator.mydistro.feature.driver.login.DriverLoginRoute
 import com.emmanuelyator.mydistro.feature.driver.tripdetails.TripDetailsRoute
@@ -38,17 +47,16 @@ import com.emmanuelyator.mydistro.feature.driver.trips.DriverTripsRoute
 import com.emmanuelyator.mydistro.feature.placeholder.ComingSoonScreen
 import com.emmanuelyator.mydistro.feature.rolepicker.RoleSelectionScreen
 import com.emmanuelyator.mydistro.feature.splash.SplashScreen
-import androidx.compose.runtime.getValue
 
 private const val TRANSITION_MILLIS = 260
 
 /**
  * Single navigation host for the app.
  *
- * The driver's four tabs live inside the same NavHost rather than a nested one,
- * with the bottom bar shown only for routes in [DriverShellRoutes]. That keeps
- * detail screens full-screen without a second navigation controller to reason
- * about.
+ * The driver's and customer's tab shells live inside the same NavHost rather
+ * than nested ones, with the bottom bar shown only for routes in
+ * [DriverShellRoutes] / [CustomerShellRoutes]. That keeps detail screens
+ * full-screen without a second navigation controller to reason about.
  */
 @Composable
 fun MyDistroNavGraph(
@@ -58,8 +66,10 @@ fun MyDistroNavGraph(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val showDriverShell = currentRoute in DriverShellRoutes
+    val showCustomerShell = currentRoute in CustomerShellRoutes
 
     val driverTabs = remember { driverBottomNavItems() }
+    val customerTabs = remember { customerBottomNavItems() }
 
     Column(modifier = modifier.fillMaxSize()) {
         NavHost(
@@ -84,8 +94,8 @@ fun MyDistroNavGraph(
             customerGraph(navController)
         }
 
-        if (showDriverShell) {
-            MyDistroBottomBar(
+        when {
+            showDriverShell -> MyDistroBottomBar(
                 items = driverTabs,
                 currentRoute = currentRoute,
                 onItemClick = { item ->
@@ -93,6 +103,17 @@ fun MyDistroNavGraph(
                         // Single instance per tab, and returning to Trips pops
                         // the others rather than stacking them.
                         popUpTo(Routes.DRIVER_TRIPS) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            )
+            showCustomerShell -> MyDistroBottomBar(
+                items = customerTabs,
+                currentRoute = currentRoute,
+                onItemClick = { item ->
+                    navController.navigate(item.route) {
+                        popUpTo(Routes.CUSTOMER_HOME) { saveState = true }
                         launchSingleTop = true
                         restoreState = true
                     }
@@ -119,9 +140,7 @@ private fun NavGraphBuilder.onboardingGraph(navController: NavHostController) {
             onRoleSelected = { role ->
                 when (role) {
                     UserRole.DRIVER -> navController.navigate(Routes.DRIVER_LOGIN)
-                    // Customer sign-in is a later phase; the placeholder is
-                    // honest about that rather than dead-ending.
-                    UserRole.CUSTOMER -> navController.navigate(Routes.CUSTOMER_COMING_SOON)
+                    UserRole.CUSTOMER -> navController.navigate(Routes.CUSTOMER_LOGIN)
                     UserRole.DISTRIBUTOR,
                     UserRole.FACTORY -> navController.navigate(Routes.CUSTOMER_COMING_SOON)
                 }
@@ -218,11 +237,64 @@ private fun NavGraphBuilder.driverGraph(navController: NavHostController) {
 }
 
 private fun NavGraphBuilder.customerGraph(navController: NavHostController) {
+    composable(Routes.CUSTOMER_LOGIN) {
+        CustomerLoginRoute(
+            onLoginSuccess = {
+                navController.navigate(Routes.CUSTOMER_HOME) {
+                    popUpTo(Routes.ROLE_SELECTION) { inclusive = true }
+                }
+            },
+            onForgotPassword = { navController.navigate(Routes.CUSTOMER_SIGNUP) },
+            onCreateAccount = { navController.navigate(Routes.CUSTOMER_SIGNUP) },
+            onSignUp = { navController.navigate(Routes.CUSTOMER_SIGNUP) }
+        )
+    }
+
+    composable(Routes.CUSTOMER_SIGNUP) {
+        ComingSoonScreen(
+            title = "Create account",
+            description = "Customer self-registration will live here. " +
+                "For now, use the prototype login credentials shown on the login screen.",
+            icon = Icons.Outlined.Storefront,
+            onBack = navController::popBackStackSafely
+        )
+    }
+
+    composable(Routes.CUSTOMER_HOME) {
+        CustomerHomeRoute()
+    }
+
+    composable(Routes.CUSTOMER_ORDERS) {
+        ComingSoonScreen(
+            title = "Orders",
+            description = "Order history and live tracking will live here once " +
+                "checkout and the orders API are wired up.",
+            icon = Icons.Outlined.ReceiptLong
+        )
+    }
+
+    composable(Routes.CUSTOMER_CART) {
+        ComingSoonScreen(
+            title = "Cart",
+            description = "Your basket and M-Pesa checkout will live here. " +
+                "Tap Add on any product to start filling it.",
+            icon = Icons.Outlined.ShoppingCart
+        )
+    }
+
+    composable(Routes.CUSTOMER_PROFILE) {
+        ComingSoonScreen(
+            title = "Profile",
+            description = "Shop details, delivery address and sign-out will live here.",
+            icon = Icons.Outlined.Person
+        )
+    }
+
     composable(Routes.CUSTOMER_COMING_SOON) {
         ComingSoonScreen(
-            title = "Customer App",
-            description = "Product browsing, ordering, M-Pesa payment and delivery " +
-                "tracking are the next vertical slice. The driver flow is built first.",
+            title = "Web console",
+            description = "Distributors and factories use the Angular web app, " +
+                "not this mobile client.",
             icon = Icons.Outlined.Storefront,
             onBack = navController::popBackStackSafely
         )
@@ -258,6 +330,33 @@ private fun driverBottomNavItems(): List<BottomNavItem> = listOf(
     ),
     BottomNavItem(
         route = Routes.DRIVER_PROFILE,
+        label = "Profile",
+        selectedIcon = Icons.Filled.Person,
+        unselectedIcon = Icons.Outlined.Person
+    )
+)
+
+private fun customerBottomNavItems(): List<BottomNavItem> = listOf(
+    BottomNavItem(
+        route = Routes.CUSTOMER_HOME,
+        label = "Home",
+        selectedIcon = Icons.Filled.Home,
+        unselectedIcon = Icons.Outlined.Home
+    ),
+    BottomNavItem(
+        route = Routes.CUSTOMER_ORDERS,
+        label = "Orders",
+        selectedIcon = Icons.Filled.ReceiptLong,
+        unselectedIcon = Icons.Outlined.ReceiptLong
+    ),
+    BottomNavItem(
+        route = Routes.CUSTOMER_CART,
+        label = "Cart",
+        selectedIcon = Icons.Filled.ShoppingCart,
+        unselectedIcon = Icons.Outlined.ShoppingCart
+    ),
+    BottomNavItem(
+        route = Routes.CUSTOMER_PROFILE,
         label = "Profile",
         selectedIcon = Icons.Filled.Person,
         unselectedIcon = Icons.Outlined.Person

@@ -34,6 +34,9 @@ interface AuthRepository {
      */
     suspend fun loginDriver(phoneOrEmail: String, password: String): DataResult<AuthSession>
 
+    /** Customers can self-register; login uses the same credential formats. */
+    suspend fun loginCustomer(phoneOrEmail: String, password: String): DataResult<AuthSession>
+
     /** Profile of the signed-in driver, for the dashboard header. */
     suspend fun currentDriver(): DataResult<Driver>
 

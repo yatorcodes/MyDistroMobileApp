@@ -1,11 +1,10 @@
 package com.emmanuelyator.mydistro.feature.splash
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,39 +12,39 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Factory
+import androidx.compose.material.icons.outlined.LocalShipping
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Storefront
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.emmanuelyator.mydistro.R
-import com.emmanuelyator.mydistro.core.designsystem.component.HeroBackground
-import com.emmanuelyator.mydistro.core.designsystem.theme.Dimens
+import com.emmanuelyator.mydistro.core.designsystem.component.DiamondLogo
+import com.emmanuelyator.mydistro.core.designsystem.component.PhotoHeroBackground
 import com.emmanuelyator.mydistro.core.designsystem.theme.MyDistroTheme
-import com.emmanuelyator.mydistro.core.designsystem.theme.Spacing
 import com.emmanuelyator.mydistro.core.designsystem.theme.StatusBarIcons
 import kotlinx.coroutines.delay
 
-private const val SPLASH_DWELL_MILLIS = 1_400L
+private const val SPLASH_DWELL_MILLIS = 2_200L
 
 /**
- * Brand entry point. Holds for a beat, fades the lockup in, then hands off.
- *
- * The dwell is a deliberate brand moment rather than a loading screen — once
- * there is a real session check to perform, [onFinished] should be driven by
- * that instead of a timer.
+ * Brand splash matching the production mockup:
+ * full-bleed truck photo, diamond logo + tagline, audience row at the bottom.
  */
 @Composable
 fun SplashScreen(
@@ -54,82 +53,121 @@ fun SplashScreen(
 ) {
     StatusBarIcons(dark = false)
 
-    var visible by remember { mutableStateOf(false) }
-    val contentAlpha by animateFloatAsState(
-        targetValue = if (visible) 1f else 0f,
-        animationSpec = tween(durationMillis = 650),
-        label = "splashFade"
-    )
-
     LaunchedEffect(Unit) {
-        visible = true
         delay(SPLASH_DWELL_MILLIS)
         onFinished()
     }
 
-    HeroBackground(modifier = modifier.fillMaxSize()) {
-        // Darkens the lower half so the wordmark and tagline stay legible
-        // whatever artwork sits behind them.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color.Transparent,
-                            MyDistroTheme.colors.heroSurface.copy(alpha = 0.85f)
-                        )
-                    )
-                )
-        )
-
+    PhotoHeroBackground(
+        imageRes = R.drawable.img_splash_truck,
+        contentDescription = "MyDistro distribution truck at an industrial plant",
+        bottomScrimAlpha = 0.72f,
+        modifier = modifier.fillMaxSize()
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(horizontal = Dimens.screenPadding, vertical = Spacing.xxxl)
-                .alpha(contentAlpha),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .padding(horizontal = 20.dp)
+                .padding(top = 36.dp, bottom = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            androidx.compose.foundation.Image(
-                painter = painterResource(R.drawable.ic_mydistro_logo),
-                contentDescription = null,
-                modifier = Modifier.size(64.dp)
-            )
-            Spacer(Modifier.height(Spacing.lg))
-            Text(
-                text = "MyDistro",
-                style = MaterialTheme.typography.displaySmall,
-                color = MyDistroTheme.colors.onHeroSurface
-            )
-            Spacer(Modifier.height(Spacing.md))
-            Text(
-                text = "Stronger supply chains.\nA brighter Kenya.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MyDistroTheme.colors.onHeroSurfaceVariant,
-                textAlign = TextAlign.Center
+            // -------------------- Branding --------------------
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(top = 12.dp)
+            ) {
+                DiamondLogo(modifier = Modifier.size(56.dp))
+
+                Spacer(Modifier.height(14.dp))
+
+                Text(
+                    text = "MyDistro",
+                    color = Color.White,
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-0.6).sp
+                )
+
+                Spacer(Modifier.height(10.dp))
+
+                Text(
+                    text = "Stronger Supply Chains.\nA Brighter Kenya.",
+                    color = Color.White.copy(alpha = 0.92f),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Normal,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 22.sp,
+                    modifier = Modifier.widthIn(max = 260.dp)
+                )
+            }
+
+            Spacer(Modifier.weight(1f))
+
+            // -------------------- Audience footer --------------------
+            AudienceFooter(
+                items = listOf(
+                    AudienceItem("Manufacturers", Icons.Outlined.Factory),
+                    AudienceItem("Distributors", Icons.Outlined.LocalShipping),
+                    AudienceItem("Hardware\nCustomers", Icons.Outlined.Storefront),
+                    AudienceItem("Drivers", Icons.Outlined.Person)
+                )
             )
         }
-
-        Text(
-            text = "Manufacturers  ·  Distributors  ·  Hardware  ·  Drivers",
-            style = MaterialTheme.typography.bodySmall,
-            color = MyDistroTheme.colors.onHeroSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = Dimens.screenPadding, vertical = Spacing.xxl)
-                .alpha(contentAlpha)
-        )
     }
 }
 
-@Preview(showBackground = true)
+private data class AudienceItem(
+    val label: String,
+    val icon: ImageVector
+)
+
 @Composable
-private fun SplashScreenPreview() {
+private fun AudienceFooter(items: List<AudienceItem>) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        items.forEachIndexed { index, item ->
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = item.icon,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(26.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = item.label,
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 14.sp,
+                    maxLines = 2
+                )
+            }
+            if (index != items.lastIndex) {
+                Box(
+                    modifier = Modifier
+                        .height(36.dp)
+                        .width(1.dp)
+                        .background(Color.White.copy(alpha = 0.45f))
+                )
+            }
+        }
+    }
+}
+
+@Preview(showBackground = true, heightDp = 800, widthDp = 390)
+@Composable
+private fun SplashPreview() {
     MyDistroTheme {
         SplashScreen(onFinished = {})
     }

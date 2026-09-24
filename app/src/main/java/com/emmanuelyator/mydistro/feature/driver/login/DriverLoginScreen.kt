@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,50 +18,53 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.LocalShipping
-import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.PersonOutline
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.emmanuelyator.mydistro.core.designsystem.component.HeroBackground
-import com.emmanuelyator.mydistro.core.designsystem.component.MyDistroLogo
-import com.emmanuelyator.mydistro.core.designsystem.component.MyDistroPasswordField
-import com.emmanuelyator.mydistro.core.designsystem.component.MyDistroPrimaryButton
-import com.emmanuelyator.mydistro.core.designsystem.component.MyDistroTextButton
-import com.emmanuelyator.mydistro.core.designsystem.component.MyDistroTextField
-import com.emmanuelyator.mydistro.core.designsystem.theme.Dimens
+import com.emmanuelyator.mydistro.R
+import com.emmanuelyator.mydistro.core.designsystem.component.DiamondLogo
+import com.emmanuelyator.mydistro.core.designsystem.component.PhotoHeroBackground
 import com.emmanuelyator.mydistro.core.designsystem.theme.MyDistroTheme
-import com.emmanuelyator.mydistro.core.designsystem.theme.PillShape
-import com.emmanuelyator.mydistro.core.designsystem.theme.Spacing
 import com.emmanuelyator.mydistro.core.designsystem.theme.StatusBarIcons
 import com.emmanuelyator.mydistro.feature.auth.data.DemoCredentials
 
-/**
- * Stateful entry point. Keeps the ViewModel out of [DriverLoginContent] so the
- * layout stays previewable and testable with plain values.
- */
 @Composable
 fun DriverLoginRoute(
     onLoginSuccess: () -> Unit,
@@ -77,271 +81,317 @@ fun DriverLoginRoute(
         }
     }
 
-    DriverLoginContent(
+    DriverLoginScreen(
         uiState = uiState,
-        onIdentifierChange = viewModel::onIdentifierChange,
+        onCredentialChange = viewModel::onIdentifierChange,
         onPasswordChange = viewModel::onPasswordChange,
-        onSubmit = viewModel::onSubmit,
-        onForgotPassword = onForgotPassword
+        onLoginClick = viewModel::onSubmit,
+        onForgotPasswordClick = onForgotPassword
     )
 }
 
+/**
+ * Driver Login matching the production mockup: highway truck photo, bottom
+ * fade, brand lockup, then the form sitting in the darkened lower third.
+ */
 @Composable
-private fun DriverLoginContent(
+fun DriverLoginScreen(
     uiState: DriverLoginUiState,
-    onIdentifierChange: (String) -> Unit,
+    onCredentialChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
-    onSubmit: () -> Unit,
-    onForgotPassword: () -> Unit,
+    onLoginClick: () -> Unit,
+    onForgotPasswordClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     StatusBarIcons(dark = false)
+
+    var passwordVisible by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
+    val fieldOnPhoto = Color.White.copy(alpha = 0.18f)
+    val fieldBorder = Color.White.copy(alpha = 0.55f)
+    val muted = Color.White.copy(alpha = 0.78f)
 
-    // imePadding keeps the form above the keyboard, and verticalScroll means the
-    // whole screen still reaches every field on short devices.
-    HeroBackground(modifier = modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            MyDistroTheme.colors.heroSurface.copy(alpha = 0.55f),
-                            MyDistroTheme.colors.heroSurface.copy(alpha = 0.96f)
-                        )
-                    )
-                )
-        )
-
+    PhotoHeroBackground(
+        imageRes = R.drawable.img_driver_login_truck,
+        contentDescription = "Delivery truck on a highway at sunset",
+        bottomScrimAlpha = 0.88f,
+        modifier = modifier.fillMaxSize()
+    ) {
         Column(
             modifier = Modifier
-                .widthIn(max = Dimens.maxContentWidth)
-                .align(Alignment.TopCenter)
-                .verticalScroll(rememberScrollState())
+                .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
                 .imePadding()
-                .padding(horizontal = Dimens.screenPadding)
-                .padding(top = Spacing.xxl, bottom = Spacing.xxl)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 28.dp)
+                .padding(top = 28.dp, bottom = 28.dp)
         ) {
-            MyDistroLogo(
-                markSize = 26.dp,
-                wordmarkColor = MyDistroTheme.colors.onHeroSurface
-            )
+            // Brand lockup — top centre, matching the mockup
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                DiamondLogo(modifier = Modifier.size(34.dp))
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "MyDistro",
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    letterSpacing = (-0.3).sp
+                )
+            }
 
-            Spacer(Modifier.height(Spacing.huge))
+            Spacer(Modifier.weight(1f))
 
-            DriverBadge()
-
-            Spacer(Modifier.height(Spacing.xl))
-
+            // Form block sits in the faded lower third
             Text(
                 text = "Driver Login",
-                style = MaterialTheme.typography.headlineLarge,
-                color = MyDistroTheme.colors.onHeroSurface
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                letterSpacing = (-0.3).sp
             )
-            Spacer(Modifier.height(Spacing.sm))
+            Spacer(Modifier.height(6.dp))
             Text(
                 text = "Access your trips and deliveries",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MyDistroTheme.colors.onHeroSurfaceVariant
+                fontSize = 15.sp,
+                color = muted
             )
 
-            Spacer(Modifier.height(Spacing.xxl))
+            Spacer(Modifier.height(28.dp))
 
-            MyDistroTextField(
+            LoginTextField(
                 value = uiState.identifier,
-                onValueChange = onIdentifierChange,
+                onValueChange = onCredentialChange,
                 placeholder = "Phone number or email",
-                leadingIcon = Icons.Outlined.PersonOutline,
-                errorMessage = uiState.identifierError,
+                leadingIcon = Icons.Filled.PhoneAndroid,
+                keyboardType = KeyboardType.Text,
                 enabled = !uiState.isSubmitting,
-                keyboardType = KeyboardType.Email,
-                imeAction = ImeAction.Next
+                isError = uiState.identifierError != null,
+                containerColor = fieldOnPhoto,
+                borderColor = fieldBorder
             )
+            if (uiState.identifierError != null) {
+                FieldError(uiState.identifierError)
+            }
 
-            Spacer(Modifier.height(Spacing.md))
+            Spacer(Modifier.height(14.dp))
 
-            MyDistroPasswordField(
+            LoginTextField(
                 value = uiState.password,
                 onValueChange = onPasswordChange,
                 placeholder = "Password",
-                leadingIcon = Icons.Outlined.Lock,
-                errorMessage = uiState.passwordError,
+                leadingIcon = Icons.Filled.Lock,
+                keyboardType = KeyboardType.Password,
+                isPassword = true,
+                passwordVisible = passwordVisible,
+                onToggleVisibility = { passwordVisible = !passwordVisible },
                 enabled = !uiState.isSubmitting,
-                imeAction = ImeAction.Done,
-                keyboardActions = KeyboardActions(
-                    onDone = {
-                        keyboard?.hide()
-                        onSubmit()
-                    }
-                )
+                isError = uiState.passwordError != null,
+                containerColor = fieldOnPhoto,
+                borderColor = fieldBorder
             )
+            if (uiState.passwordError != null) {
+                FieldError(uiState.passwordError)
+            }
 
             AnimatedVisibility(
                 visible = uiState.formError != null,
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
-                FormErrorMessage(message = uiState.formError.orEmpty())
-            }
-
-            Spacer(Modifier.height(Spacing.xl))
-
-            MyDistroPrimaryButton(
-                text = if (uiState.isSubmitting) "Signing in…" else "Login",
-                onClick = {
-                    keyboard?.hide()
-                    onSubmit()
-                },
-                enabled = uiState.canSubmit,
-                loading = uiState.isSubmitting
-            )
-
-            Spacer(Modifier.height(Spacing.xs))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                MyDistroTextButton(
-                    text = "Forgot password?",
-                    onClick = onForgotPassword,
-                    enabled = !uiState.isSubmitting,
-                    accent = true
+                Text(
+                    text = uiState.formError.orEmpty(),
+                    fontSize = 13.sp,
+                    color = Color(0xFFFFB4A8),
+                    modifier = Modifier.padding(top = 10.dp)
                 )
             }
 
-            Spacer(Modifier.height(Spacing.lg))
+            Spacer(Modifier.height(16.dp))
 
-            PrototypeNotice()
+            Button(
+                onClick = {
+                    keyboard?.hide()
+                    onLoginClick()
+                },
+                enabled = uiState.canSubmit,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.secondary,
+                    contentColor = MaterialTheme.colorScheme.onSecondary,
+                    disabledContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f),
+                    disabledContentColor = MaterialTheme.colorScheme.onSecondary.copy(alpha = 0.8f)
+                )
+            ) {
+                if (uiState.isSubmitting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onSecondary
+                    )
+                } else {
+                    Text(
+                        text = "Login",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
 
-            Spacer(Modifier.height(Spacing.xl))
+            Spacer(Modifier.height(6.dp))
 
             Text(
-                text = "Driver accounts are created by your distributor.\nSecure · Fast · Reliable",
-                style = MaterialTheme.typography.bodySmall,
-                color = MyDistroTheme.colors.onHeroSurfaceVariant.copy(alpha = 0.75f),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
+                text = "Forgot password?",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color.White.copy(alpha = 0.85f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 10.dp)
+                    .clickable(
+                        enabled = !uiState.isSubmitting,
+                        onClick = onForgotPasswordClick
+                    ),
+                textAlign = TextAlign.Center
             )
+
+            Spacer(Modifier.height(8.dp))
+
+            PrototypeHint()
         }
     }
 }
 
-/** Reinforces which of the two mobile roles the user is signing into. */
 @Composable
-private fun DriverBadge() {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.md)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(52.dp)
-                .clip(PillShape)
-                .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.LocalShipping,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.size(26.dp)
-            )
-        }
-        Column {
-            Text(
-                text = "For drivers",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.secondary
-            )
-            Text(
-                text = "MyDistro Logistics",
-                style = MaterialTheme.typography.titleSmall,
-                color = MyDistroTheme.colors.onHeroSurface
-            )
-        }
-    }
+private fun FieldError(message: String) {
+    Text(
+        text = message,
+        fontSize = 12.sp,
+        color = Color(0xFFFFB4A8),
+        modifier = Modifier.padding(top = 6.dp, start = 4.dp)
+    )
 }
 
 @Composable
-private fun FormErrorMessage(message: String) {
+private fun PrototypeHint() {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = Spacing.md)
-            .clip(MaterialTheme.shapes.extraSmall)
-            .background(MyDistroTheme.colors.danger.copy(alpha = 0.16f))
-            .padding(Spacing.md)
-    ) {
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodySmall,
-            color = Color.White
-        )
-    }
-}
-
-/**
- * States plainly that no backend is involved yet, and shows the demo
- * credentials. Better an honest label than a login screen that looks real.
- */
-@Composable
-private fun PrototypeNotice() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.small)
-            .background(Color.White.copy(alpha = 0.08f))
-            .padding(Spacing.md)
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.White.copy(alpha = 0.10f))
+            .padding(12.dp)
     ) {
         Column {
             Text(
-                text = "PROTOTYPE — NOT CONNECTED TO A BACKEND",
-                style = MaterialTheme.typography.labelSmall,
+                text = "PROTOTYPE — MOCK AUTH",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.secondary
             )
-            Spacer(Modifier.height(Spacing.xs))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Credentials are checked on-device against demo values. " +
-                    "Sign in with ${DemoCredentials.PHONE} / ${DemoCredentials.PASSWORD}.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MyDistroTheme.colors.onHeroSurfaceVariant
+                text = "Use ${DemoCredentials.PHONE} / ${DemoCredentials.PASSWORD}",
+                fontSize = 12.sp,
+                color = Color.White.copy(alpha = 0.75f)
             )
         }
     }
 }
 
-@Preview(showBackground = true)
+@Composable
+private fun LoginTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    leadingIcon: androidx.compose.ui.graphics.vector.ImageVector,
+    keyboardType: KeyboardType,
+    isPassword: Boolean = false,
+    passwordVisible: Boolean = false,
+    onToggleVisibility: (() -> Unit)? = null,
+    enabled: Boolean = true,
+    isError: Boolean = false,
+    containerColor: Color,
+    borderColor: Color
+) {
+    val iconTint = Color.White.copy(alpha = 0.85f)
+
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        enabled = enabled,
+        isError = isError,
+        placeholder = {
+            Text(placeholder, color = Color.White.copy(alpha = 0.55f))
+        },
+        leadingIcon = {
+            Icon(leadingIcon, contentDescription = null, tint = iconTint)
+        },
+        trailingIcon = if (isPassword) {
+            {
+                IconButton(onClick = { onToggleVisibility?.invoke() }) {
+                    Icon(
+                        imageVector = if (passwordVisible) {
+                            Icons.Filled.VisibilityOff
+                        } else {
+                            Icons.Filled.Visibility
+                        },
+                        contentDescription = if (passwordVisible) {
+                            "Hide password"
+                        } else {
+                            "Show password"
+                        },
+                        tint = iconTint
+                    )
+                }
+            }
+        } else {
+            null
+        },
+        visualTransformation = if (isPassword && !passwordVisible) {
+            PasswordVisualTransformation()
+        } else {
+            VisualTransformation.None
+        },
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        singleLine = true,
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = containerColor,
+            unfocusedContainerColor = containerColor,
+            disabledContainerColor = containerColor,
+            errorContainerColor = containerColor,
+            focusedBorderColor = Color.White,
+            unfocusedBorderColor = borderColor,
+            errorBorderColor = Color(0xFFFFB4A8),
+            focusedTextColor = Color.White,
+            unfocusedTextColor = Color.White,
+            disabledTextColor = Color.White.copy(alpha = 0.6f),
+            cursorColor = MaterialTheme.colorScheme.secondary
+        ),
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+@Preview(showBackground = true, heightDp = 800, widthDp = 390)
 @Composable
 private fun DriverLoginPreview() {
     MyDistroTheme {
-        DriverLoginContent(
-            uiState = DriverLoginUiState(identifier = "0712345678", password = "driver123"),
-            onIdentifierChange = {},
-            onPasswordChange = {},
-            onSubmit = {},
-            onForgotPassword = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, name = "Login — error")
-@Composable
-private fun DriverLoginErrorPreview() {
-    MyDistroTheme {
-        DriverLoginContent(
+        DriverLoginScreen(
             uiState = DriverLoginUiState(
                 identifier = "0712345678",
-                password = "wrong",
-                formError = "Incorrect phone number or password."
+                password = "driver123"
             ),
-            onIdentifierChange = {},
+            onCredentialChange = {},
             onPasswordChange = {},
-            onSubmit = {},
-            onForgotPassword = {}
+            onLoginClick = {},
+            onForgotPasswordClick = {}
         )
     }
 }

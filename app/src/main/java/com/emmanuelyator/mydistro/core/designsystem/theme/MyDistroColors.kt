@@ -31,7 +31,11 @@ data class MyDistroColors(
     val danger: Color,
     val dangerContainer: Color,
     val neutral: Color,
-    val neutralContainer: Color
+    val neutralContainer: Color,
+    // Added for form fields on dark hero screens (Driver Login, etc.) —
+    // previously hardcoded as raw hex inline in DriverLoginScreen.
+    val inputBackground: Color,
+    val inputBorder: Color
 )
 
 internal val LightMyDistroColors = MyDistroColors(
@@ -53,7 +57,9 @@ internal val LightMyDistroColors = MyDistroColors(
     danger = Danger500,
     dangerContainer = Danger50,
     neutral = Gray500,
-    neutralContainer = Gray100
+    neutralContainer = Gray100,
+    inputBackground = NavyInput,
+    inputBorder = NavyBorder
 )
 
 internal val LocalMyDistroColors = staticCompositionLocalOf { LightMyDistroColors }

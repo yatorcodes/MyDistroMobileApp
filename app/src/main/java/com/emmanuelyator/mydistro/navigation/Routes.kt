@@ -31,7 +31,13 @@ object Routes {
     fun driverDeliveryConfirmation(tripId: String, stopId: String) =
         "$DRIVER_TRIP_DETAILS_BASE/$tripId/stop/$stopId/confirm"
 
-    // --- Customer (later phases) ---
+    // --- Customer ---
+    const val CUSTOMER_LOGIN = "customer/login"
+    const val CUSTOMER_SIGNUP = "customer/signup"
+    const val CUSTOMER_HOME = "customer/home"
+    const val CUSTOMER_ORDERS = "customer/orders"
+    const val CUSTOMER_CART = "customer/cart"
+    const val CUSTOMER_PROFILE = "customer/profile"
     const val CUSTOMER_COMING_SOON = "customer/coming_soon"
 
     object Args {
@@ -46,4 +52,12 @@ val DriverShellRoutes = setOf(
     Routes.DRIVER_MAP,
     Routes.DRIVER_HISTORY,
     Routes.DRIVER_PROFILE
+)
+
+/** Destinations that make up the customer's bottom-navigation shell. */
+val CustomerShellRoutes = setOf(
+    Routes.CUSTOMER_HOME,
+    Routes.CUSTOMER_ORDERS,
+    Routes.CUSTOMER_CART,
+    Routes.CUSTOMER_PROFILE
 )
