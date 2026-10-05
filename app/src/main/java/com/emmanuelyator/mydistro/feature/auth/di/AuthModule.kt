@@ -20,5 +20,5 @@ interface AuthModule {
 
     @Binds
     @Singleton
-    fun bindAuthRepository(impl: MockAuthRepository): AuthRepository
+    fun bindAuthRepository(impl: com.emmanuelyator.mydistro.feature.auth.data.NetworkAuthRepository): AuthRepository
 }

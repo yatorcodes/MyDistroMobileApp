@@ -87,13 +87,15 @@ data class BottomNavItem(
     val route: String,
     val label: String,
     val selectedIcon: ImageVector,
-    val unselectedIcon: ImageVector
+    val unselectedIcon: ImageVector,
+    val badgeCount: Int? = null
 )
 
 /**
  * Bottom navigation shared by the driver and customer shells — they differ only
  * in the [items] they pass, so there is one implementation to keep consistent.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyDistroBottomBar(
     items: List<BottomNavItem>,
@@ -118,11 +120,21 @@ fun MyDistroBottomBar(
                     selected = selected,
                     onClick = { onItemClick(item) },
                     icon = {
-                        Icon(
-                            imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
-                            contentDescription = null,
-                            modifier = Modifier.size(Dimens.iconLg)
-                        )
+                        androidx.compose.material3.BadgedBox(
+                            badge = {
+                                if (item.badgeCount != null && item.badgeCount > 0) {
+                                    androidx.compose.material3.Badge {
+                                        Text(item.badgeCount.toString())
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
+                                contentDescription = null,
+                                modifier = Modifier.size(Dimens.iconLg)
+                            )
+                        }
                     },
                     label = { Text(text = item.label, style = MaterialTheme.typography.labelSmall) },
                     alwaysShowLabel = true,

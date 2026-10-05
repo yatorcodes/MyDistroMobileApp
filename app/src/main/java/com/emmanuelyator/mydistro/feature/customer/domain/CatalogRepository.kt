@@ -18,6 +18,9 @@ interface CatalogRepository {
  */
 interface CartRepository {
     val itemCount: Flow<Int>
+    val quantities: Flow<Map<String, Int>>
     suspend fun addProduct(productId: String, quantity: Int = 1)
+    suspend fun removeProduct(productId: String)
+    suspend fun updateQuantity(productId: String, quantity: Int)
     suspend fun clear()
 }

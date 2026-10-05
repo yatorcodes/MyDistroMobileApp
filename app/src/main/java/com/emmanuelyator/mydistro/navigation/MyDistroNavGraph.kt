@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
@@ -73,7 +74,19 @@ fun MyDistroNavGraph(
     val showCustomerShell = currentRoute in CustomerShellRoutes
 
     val driverTabs = remember { driverBottomNavItems() }
-    val customerTabs = remember { customerBottomNavItems() }
+
+    // If we're showing the customer shell, collect the cart item count
+    val customerCartViewModel: com.emmanuelyator.mydistro.feature.customer.cart.CustomerCartViewModel? = if (showCustomerShell) {
+        androidx.hilt.navigation.compose.hiltViewModel()
+    } else null
+    val cartUiState by (customerCartViewModel?.uiState ?: kotlinx.coroutines.flow.MutableStateFlow(
+        com.emmanuelyator.mydistro.feature.customer.cart.CartUiState()
+    )).collectAsStateWithLifecycle()
+    
+    val customerTabs = remember(cartUiState.items) {
+        val totalQuantity = cartUiState.items.sumOf { it.quantity }
+        customerBottomNavItems(cartItemCount = totalQuantity)
+    }
 
     Column(modifier = modifier.fillMaxSize()) {
         NavHost(
@@ -151,7 +164,7 @@ private fun NavGraphBuilder.onboardingGraph(navController: NavHostController) {
                 when (role) {
                     UserRole.DRIVER -> navController.navigate(Routes.DRIVER_LOGIN)
                     UserRole.CUSTOMER -> navController.navigate(Routes.CUSTOMER_LOGIN)
-                    UserRole.DISTRIBUTOR,
+                    UserRole.DISTRIBUTOR -> navController.navigate(Routes.DISTRIBUTOR_HOME)
                     UserRole.FACTORY -> navController.navigate(Routes.CUSTOMER_COMING_SOON)
                 }
             }
@@ -327,28 +340,84 @@ private fun NavGraphBuilder.customerGraph(navController: NavHostController) {
     }
 
     composable(Routes.CUSTOMER_ORDERS) {
-        ComingSoonScreen(
-            title = "Orders",
-            description = "Order history and live tracking will live here once " +
-                "checkout and the orders API are wired up.",
-            icon = Icons.Outlined.ReceiptLong
+        com.emmanuelyator.mydistro.feature.customer.orders.CustomerOrdersRoute(
+            onOrderClick = { orderId ->
+                navController.navigate(Routes.customerOrderStatus(orderId))
+            }
+        )
+    }
+
+    composable(
+        route = Routes.CUSTOMER_ORDER_STATUS,
+        arguments = listOf(navArgument(Routes.Args.ORDER_ID) { type = NavType.StringType })
+    ) { backStackEntry ->
+        val orderId = backStackEntry.arguments?.getString(Routes.Args.ORDER_ID) ?: ""
+        com.emmanuelyator.mydistro.feature.customer.orders.CustomerOrderStatusRoute(
+            orderId = orderId,
+            onBack = navController::popBackStackSafely
         )
     }
 
     composable(Routes.CUSTOMER_CART) {
-        ComingSoonScreen(
-            title = "Cart",
-            description = "Your basket and M-Pesa checkout will live here. " +
-                "Tap Add on any product to start filling it.",
-            icon = Icons.Outlined.ShoppingCart
+        com.emmanuelyator.mydistro.feature.customer.cart.CustomerCartRoute(
+            onCheckoutSuccess = {
+                // In a real app we'd get the ID of the new order from the checkout result.
+                // For now, we'll navigate to the first mock order or just to orders list.
+                navController.navigate(Routes.CUSTOMER_ORDERS) {
+                    popUpTo(Routes.CUSTOMER_CART) { inclusive = true }
+                }
+            },
+            onAddMoreProducts = {
+                navController.navigate(Routes.CUSTOMER_HOME) {
+                    popUpTo(Routes.CUSTOMER_CART) { inclusive = true }
+                }
+            }
         )
     }
 
     composable(Routes.CUSTOMER_PROFILE) {
-        ComingSoonScreen(
-            title = "Profile",
-            description = "Shop details, delivery address and sign-out will live here.",
-            icon = Icons.Outlined.Person
+        com.emmanuelyator.mydistro.feature.customer.profile.CustomerProfileRoute(
+            onLoggedOut = {
+                navController.navigate(Routes.ROLE_SELECTION) {
+                    popUpTo(0) { inclusive = true } // Clear the entire backstack
+                }
+            },
+            onEditProfile = {
+                navController.navigate(Routes.CUSTOMER_EDIT_PROFILE)
+            },
+            onDeliveryAddresses = {
+                navController.navigate(Routes.CUSTOMER_DELIVERY_ADDRESSES)
+            },
+            onPrivacySecurity = {
+                navController.navigate(Routes.CUSTOMER_PRIVACY_SECURITY)
+            },
+            onHelpSupport = {
+                navController.navigate(Routes.CUSTOMER_HELP_SUPPORT)
+            }
+        )
+    }
+
+    composable(Routes.CUSTOMER_EDIT_PROFILE) {
+        com.emmanuelyator.mydistro.feature.customer.profile.CustomerEditProfileRoute(
+            onBack = navController::popBackStackSafely
+        )
+    }
+
+    composable(Routes.CUSTOMER_DELIVERY_ADDRESSES) {
+        com.emmanuelyator.mydistro.feature.customer.profile.CustomerDeliveryAddressesRoute(
+            onBack = navController::popBackStackSafely
+        )
+    }
+
+    composable(Routes.CUSTOMER_PRIVACY_SECURITY) {
+        com.emmanuelyator.mydistro.feature.customer.profile.CustomerPrivacySecurityRoute(
+            onBack = navController::popBackStackSafely
+        )
+    }
+
+    composable(Routes.CUSTOMER_HELP_SUPPORT) {
+        com.emmanuelyator.mydistro.feature.customer.profile.CustomerHelpSupportRoute(
+            onBack = navController::popBackStackSafely
         )
     }
 
@@ -358,6 +427,19 @@ private fun NavGraphBuilder.customerGraph(navController: NavHostController) {
             description = "Distributors and factories use the Angular web app, " +
                 "not this mobile client.",
             icon = Icons.Outlined.Storefront,
+            onBack = navController::popBackStackSafely
+        )
+    }
+
+    composable(Routes.DISTRIBUTOR_HOME) {
+        com.emmanuelyator.mydistro.feature.distributor.DistributorHomeRoute(
+            onNavigateToUpload = { navController.navigate(Routes.DISTRIBUTOR_UPLOAD_PHOTOS) },
+            onBack = navController::popBackStackSafely
+        )
+    }
+
+    composable(Routes.DISTRIBUTOR_UPLOAD_PHOTOS) {
+        com.emmanuelyator.mydistro.feature.distributor.DistributorUploadPhotosRoute(
             onBack = navController::popBackStackSafely
         )
     }
@@ -392,7 +474,7 @@ private fun driverBottomNavItems(): List<BottomNavItem> = listOf(
     )
 )
 
-private fun customerBottomNavItems(): List<BottomNavItem> = listOf(
+private fun customerBottomNavItems(cartItemCount: Int = 0): List<BottomNavItem> = listOf(
     BottomNavItem(
         route = Routes.CUSTOMER_HOME,
         label = "Home",
@@ -409,7 +491,8 @@ private fun customerBottomNavItems(): List<BottomNavItem> = listOf(
         route = Routes.CUSTOMER_CART,
         label = "Cart",
         selectedIcon = Icons.Filled.ShoppingCart,
-        unselectedIcon = Icons.Outlined.ShoppingCart
+        unselectedIcon = Icons.Outlined.ShoppingCart,
+        badgeCount = cartItemCount
     ),
     BottomNavItem(
         route = Routes.CUSTOMER_PROFILE,

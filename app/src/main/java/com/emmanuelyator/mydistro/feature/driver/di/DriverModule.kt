@@ -1,6 +1,6 @@
 package com.emmanuelyator.mydistro.feature.driver.di
 
-import com.emmanuelyator.mydistro.feature.driver.data.MockTripRepository
+import com.emmanuelyator.mydistro.feature.driver.data.NetworkTripRepository
 import com.emmanuelyator.mydistro.feature.driver.domain.TripRepository
 import dagger.Binds
 import dagger.Module
@@ -19,5 +19,5 @@ interface DriverModule {
 
     @Binds
     @Singleton
-    fun bindTripRepository(impl: MockTripRepository): TripRepository
+    fun bindTripRepository(impl: NetworkTripRepository): TripRepository
 }

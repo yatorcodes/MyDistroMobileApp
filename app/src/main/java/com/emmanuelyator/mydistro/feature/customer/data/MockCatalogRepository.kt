@@ -42,17 +42,35 @@ class MockCatalogRepository @Inject constructor() : CatalogRepository {
 @Singleton
 class InMemoryCartRepository @Inject constructor() : CartRepository {
 
-    private val quantities = MutableStateFlow<Map<String, Int>>(emptyMap())
+    private val _quantities = MutableStateFlow<Map<String, Int>>(emptyMap())
 
-    override val itemCount: Flow<Int> = quantities.map { map -> map.values.sum() }
+    override val quantities: Flow<Map<String, Int>> = this._quantities
+
+    override val itemCount: Flow<Int> = this._quantities.map { map -> map.values.sum() }
 
     override suspend fun addProduct(productId: String, quantity: Int) {
-        val next = quantities.value.toMutableMap()
+        val next = _quantities.value.toMutableMap()
         next[productId] = (next[productId] ?: 0) + quantity
-        quantities.value = next
+        _quantities.value = next
+    }
+
+    override suspend fun removeProduct(productId: String) {
+        val next = _quantities.value.toMutableMap()
+        next.remove(productId)
+        _quantities.value = next
+    }
+
+    override suspend fun updateQuantity(productId: String, quantity: Int) {
+        val next = _quantities.value.toMutableMap()
+        if (quantity <= 0) {
+            next.remove(productId)
+        } else {
+            next[productId] = quantity
+        }
+        _quantities.value = next
     }
 
     override suspend fun clear() {
-        quantities.value = emptyMap()
+        _quantities.value = emptyMap()
     }
 }

@@ -18,7 +18,7 @@ import javax.inject.Singleton
 // your A55. For testing on your phone against a backend running on
 // your laptop, use your laptop's actual LAN IP (e.g. http://192.168.x.x:8080/)
 // as long as the phone and laptop are on the same WiFi.
-private const val BASE_URL = "http://10.0.2.2:8080/"
+private const val BASE_URL = "http://192.168.68.116:8081/"
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -67,4 +67,19 @@ object NetworkModule {
     @Singleton
     fun provideApiService(retrofit: Retrofit): ApiService =
         retrofit.create(ApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideTripApiService(retrofit: Retrofit): com.emmanuelyator.mydistro.feature.driver.data.TripApiService =
+        retrofit.create(com.emmanuelyator.mydistro.feature.driver.data.TripApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideAuthApiService(retrofit: Retrofit): com.emmanuelyator.mydistro.feature.auth.data.AuthApiService =
+        retrofit.create(com.emmanuelyator.mydistro.feature.auth.data.AuthApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideCustomerApiService(retrofit: Retrofit): com.emmanuelyator.mydistro.feature.customer.data.CustomerApiService =
+        retrofit.create(com.emmanuelyator.mydistro.feature.customer.data.CustomerApiService::class.java)
 }

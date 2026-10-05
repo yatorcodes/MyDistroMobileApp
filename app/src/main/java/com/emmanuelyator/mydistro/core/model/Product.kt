@@ -25,7 +25,9 @@ data class Product(
     val unitLabel: String,
     /** Price in Kenyan shillings (whole units for the prototype). */
     val priceKes: Int,
+    val imageGallery: List<String> = emptyList(),
     val inStock: Boolean = true
 ) {
     val priceLabel: String get() = "KSh %,d".format(priceKes)
+    val imageUrl: String? get() = imageGallery.firstOrNull()
 }

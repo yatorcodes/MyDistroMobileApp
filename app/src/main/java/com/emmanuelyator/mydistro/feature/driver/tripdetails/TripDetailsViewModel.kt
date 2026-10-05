@@ -16,11 +16,14 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 @HiltViewModel
 class TripDetailsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    tripRepository: TripRepository
+    private val tripRepository: TripRepository
 ) : ViewModel() {
 
     private val tripId: String = checkNotNull(savedStateHandle[Routes.Args.TRIP_ID]) {
@@ -46,4 +49,26 @@ class TripDetailsViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = UiState.Loading
         )
+
+    private val _confirmDeliveryState = kotlinx.coroutines.flow.MutableStateFlow<UiState<Unit>?>(null)
+    val confirmDeliveryState: StateFlow<UiState<Unit>?> = _confirmDeliveryState.asStateFlow()
+
+    fun confirmDelivery(stopId: String, otp: String) {
+        viewModelScope.launch {
+            _confirmDeliveryState.value = UiState.Loading
+            val result = tripRepository.confirmStopDelivery(tripId, stopId, otp)
+            when (result) {
+                is com.emmanuelyator.mydistro.core.common.DataResult.Success<*> -> {
+                    _confirmDeliveryState.value = UiState.Success(Unit)
+                }
+                is com.emmanuelyator.mydistro.core.common.DataResult.Failure -> {
+                    _confirmDeliveryState.value = UiState.Error(result.error)
+                }
+            }
+        }
+    }
+
+    fun resetConfirmState() {
+        _confirmDeliveryState.value = null
+    }
 }

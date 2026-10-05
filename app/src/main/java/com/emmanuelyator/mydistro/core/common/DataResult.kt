@@ -36,6 +36,8 @@ sealed interface AppError {
 
     data class Server(override val message: String = "Something went wrong on our side.") : AppError
 
+    data class Network(override val message: String) : AppError
+
     data class Unknown(
         override val message: String = "Something went wrong. Please try again."
     ) : AppError

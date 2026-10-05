@@ -1,6 +1,7 @@
 package com.emmanuelyator.mydistro.core.designsystem.component
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,13 +49,19 @@ fun TimelineRow(
     subtitle: String? = null,
     metaText: String? = null,
     isLast: Boolean = false,
+    onClick: (() -> Unit)? = null,
     trailingContent: @Composable (() -> Unit)? = null
 ) {
     val nodeColor = status.nodeColor()
 
     // IntrinsicSize.Min gives the row a concrete height driven by the text
     // column, which is what lets the connector line stretch with `weight`.
-    Row(modifier = modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+    ) {
         TimelineGutter(
             nodeColor = nodeColor,
             sequenceLabel = sequenceLabel,

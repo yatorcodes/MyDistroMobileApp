@@ -41,18 +41,29 @@ object Routes {
     fun driverDeliveryConfirmation(tripId: String, stopId: String) =
         "$DRIVER_TRIP_DETAILS_BASE/$tripId/stop/$stopId/confirm"
 
+    // --- Distributor & Factory ---
+    const val DISTRIBUTOR_HOME = "distributor/home"
+    const val DISTRIBUTOR_UPLOAD_PHOTOS = "distributor/upload_photos"
+
     // --- Customer ---
     const val CUSTOMER_LOGIN = "customer/login"
     const val CUSTOMER_SIGNUP = "customer/signup"
     const val CUSTOMER_HOME = "customer/home"
     const val CUSTOMER_ORDERS = "customer/orders"
+    const val CUSTOMER_ORDER_STATUS = "customer/orders/{${Args.ORDER_ID}}"
+    fun customerOrderStatus(orderId: String) = "customer/orders/$orderId"
     const val CUSTOMER_CART = "customer/cart"
     const val CUSTOMER_PROFILE = "customer/profile"
+    const val CUSTOMER_EDIT_PROFILE = "customer/edit_profile"
+    const val CUSTOMER_DELIVERY_ADDRESSES = "customer/delivery_addresses"
+    const val CUSTOMER_PRIVACY_SECURITY = "customer/privacy_security"
+    const val CUSTOMER_HELP_SUPPORT = "customer/help_support"
     const val CUSTOMER_COMING_SOON = "customer/coming_soon"
 
     object Args {
         const val TRIP_ID = "tripId"
         const val STOP_ID = "stopId"
+        const val ORDER_ID = "orderId"
     }
 }
 

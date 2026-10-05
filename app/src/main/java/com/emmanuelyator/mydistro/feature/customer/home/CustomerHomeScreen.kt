@@ -339,12 +339,40 @@ fun ProductCard(
                 .background(MyDistroTheme.colors.neutralContainer),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = iconForCategory(product.categoryId),
-                contentDescription = null,
-                tint = MyDistroTheme.colors.textSecondary,
-                modifier = Modifier.size(40.dp)
-            )
+            if (product.imageGallery.isNotEmpty()) {
+                val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { product.imageGallery.size })
+                androidx.compose.foundation.pager.HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    coil.compose.AsyncImage(
+                        model = product.imageGallery[page],
+                        contentDescription = product.name,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                if (product.imageGallery.size > 1) {
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        repeat(product.imageGallery.size) { index ->
+                            val color = if (pagerState.currentPage == index) androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.5f)
+                            Box(modifier = Modifier.size(6.dp).clip(androidx.compose.foundation.shape.CircleShape).background(color))
+                        }
+                    }
+                }
+            } else {
+                Icon(
+                    imageVector = iconForCategory(product.categoryId),
+                    contentDescription = null,
+                    tint = MyDistroTheme.colors.textSecondary,
+                    modifier = Modifier.size(40.dp)
+                )
+            }
         }
 
         Spacer(Modifier.height(Spacing.sm))

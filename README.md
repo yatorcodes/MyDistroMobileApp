@@ -1,5 +1,5 @@
 # MyDistro
-
+[app](app)
 Supply-chain distribution platform for the Kenyan market — connecting manufacturers, distributors, hardware stores, and delivery drivers.
 
 This repository is the **Android mobile app** (Jetpack Compose). Factories, distributors, and administrators use a separate Angular web console. The backend is Spring Boot + PostgreSQL (not in this repo).

@@ -56,6 +56,15 @@ import com.emmanuelyator.mydistro.core.model.TripStop
 import com.emmanuelyator.mydistro.core.model.TripType
 import com.emmanuelyator.mydistro.feature.driver.data.MockTripData
 
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.style.TextAlign
+import com.emmanuelyator.mydistro.core.designsystem.component.OtpInput
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TripDetailsRoute(
     onBack: () -> Unit,
@@ -64,20 +73,89 @@ fun TripDetailsRoute(
     viewModel: TripDetailsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val confirmState by viewModel.confirmDeliveryState.collectAsStateWithLifecycle()
+
+    var selectedStop by remember { mutableStateOf<TripStop?>(null) }
+    var otpValue by remember { mutableStateOf("") }
+
+    if (confirmState is UiState.Success) {
+        selectedStop = null
+        viewModel.resetConfirmState()
+    }
 
     TripDetailsContent(
         state = uiState,
         onBack = onBack,
-        onConfirmDelivery = onConfirmDelivery,
+        onStopClicked = { stop ->
+            selectedStop = stop
+            otpValue = ""
+            viewModel.resetConfirmState()
+        },
         onViewMap = onViewMap
     )
+
+    if (selectedStop != null) {
+        val tripId = (uiState as? UiState.Success)?.data?.id ?: ""
+        ModalBottomSheet(onDismissRequest = { selectedStop = null }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Dimens.screenPadding)
+                    .padding(bottom = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Confirm Delivery",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MyDistroTheme.colors.textPrimary
+                )
+                Spacer(modifier = Modifier.height(Spacing.md))
+                Text(
+                    text = "Enter the 6-digit OTP provided by ${selectedStop?.location?.name}.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MyDistroTheme.colors.textSecondary,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(Spacing.xl))
+                
+                OtpInput(
+                    value = otpValue,
+                    onValueChange = { otpValue = it },
+                    isError = confirmState is UiState.Error
+                )
+
+                Spacer(modifier = Modifier.height(Spacing.xxl))
+                
+                if (confirmState is UiState.Loading) {
+                    androidx.compose.material3.CircularProgressIndicator()
+                } else {
+                    MyDistroPrimaryButton(
+                        text = "Confirm Delivery",
+                        enabled = otpValue.length == 6,
+                        onClick = {
+                            viewModel.confirmDelivery(selectedStop!!.id, otpValue)
+                        }
+                    )
+                }
+
+                if (confirmState is UiState.Error) {
+                    Spacer(modifier = Modifier.height(Spacing.md))
+                    Text(
+                        text = (confirmState as UiState.Error).error.message ?: "Failed to confirm",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
 private fun TripDetailsContent(
     state: UiState<Trip>,
     onBack: () -> Unit,
-    onConfirmDelivery: (tripId: String, stopId: String) -> Unit,
+    onStopClicked: (TripStop) -> Unit,
     onViewMap: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -95,7 +173,7 @@ private fun TripDetailsContent(
                 is UiState.Error -> ErrorState(error = state.error)
                 is UiState.Success -> TripDetailsBody(
                     trip = state.data,
-                    onConfirmDelivery = onConfirmDelivery,
+                    onStopClicked = onStopClicked,
                     onViewMap = onViewMap
                 )
             }
@@ -106,7 +184,7 @@ private fun TripDetailsContent(
 @Composable
 private fun TripDetailsBody(
     trip: Trip,
-    onConfirmDelivery: (tripId: String, stopId: String) -> Unit,
+    onStopClicked: (TripStop) -> Unit,
     onViewMap: () -> Unit
 ) {
     // The next stop the driver can confirm. Null for restock trips and for
@@ -128,7 +206,7 @@ private fun TripDetailsBody(
 
         SectionHeading(text = "Route")
         Spacer(Modifier.height(Spacing.md))
-        RouteCard(trip = trip)
+        RouteCard(trip = trip, onStopClicked = onStopClicked)
 
         Spacer(Modifier.height(Spacing.xl))
 
@@ -144,7 +222,7 @@ private fun TripDetailsBody(
         if (confirmableStop != null) {
             MyDistroPrimaryButton(
                 text = "Confirm delivery · ${confirmableStop.location.name}",
-                onClick = { onConfirmDelivery(trip.id, confirmableStop.id) }
+                onClick = { onStopClicked(confirmableStop) }
             )
             Spacer(Modifier.height(Spacing.md))
         }
@@ -194,7 +272,7 @@ private fun TripSummaryCard(trip: Trip) {
 }
 
 @Composable
-private fun RouteCard(trip: Trip) {
+private fun RouteCard(trip: Trip, onStopClicked: (TripStop) -> Unit) {
     MyDistroCard {
         // The origin is rendered as a completed node: the driver has already
         // loaded, so it is part of the route, not a pending stop.
@@ -203,10 +281,12 @@ private fun RouteCard(trip: Trip) {
             subtitle = trip.origin.address,
             status = StopStatus.COMPLETED,
             metaText = "Departed ${trip.scheduledStartLabel}",
-            isLast = trip.stops.isEmpty()
+            isLast = trip.stops.isEmpty(),
+            onClick = null
         )
 
         trip.stops.sortedBy { it.sequence }.forEachIndexed { index, stop ->
+            val isClickable = stop.status == StopStatus.PENDING || stop.status == StopStatus.IN_PROGRESS
             TimelineRow(
                 title = stop.location.name,
                 subtitle = stop.location.address,
@@ -214,7 +294,8 @@ private fun RouteCard(trip: Trip) {
                 sequenceLabel = stop.sequence.toString(),
                 metaText = stop.metaLabel(trip.type),
                 isLast = index == trip.stops.lastIndex,
-                trailingContent = { StopStatusBadge(status = stop.status) }
+                trailingContent = { StopStatusBadge(status = stop.status) },
+                onClick = if (isClickable) { { onStopClicked(stop) } } else null
             )
         }
     }
@@ -353,7 +434,7 @@ private fun TripDetailsDeliveryPreview() {
         TripDetailsContent(
             state = UiState.Success(MockTripData.deliveryTripInProgress),
             onBack = {},
-            onConfirmDelivery = { _, _ -> },
+            onStopClicked = {},
             onViewMap = {}
         )
     }
@@ -366,7 +447,7 @@ private fun TripDetailsRestockPreview() {
         TripDetailsContent(
             state = UiState.Success(MockTripData.restockTripScheduled),
             onBack = {},
-            onConfirmDelivery = { _, _ -> },
+            onStopClicked = {},
             onViewMap = {}
         )
     }
