@@ -20,17 +20,22 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.LocalShipping
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.emmanuelyator.mydistro.core.designsystem.component.MyDistroTopBar
 import com.emmanuelyator.mydistro.core.designsystem.component.OrderStatusBadge
 import com.emmanuelyator.mydistro.core.designsystem.component.label
@@ -40,26 +45,72 @@ import com.emmanuelyator.mydistro.core.designsystem.theme.Spacing
 import com.emmanuelyator.mydistro.core.model.Order
 import com.emmanuelyator.mydistro.core.model.OrderStatus
 import com.emmanuelyator.mydistro.core.model.OrderStatusTimeline
-import com.emmanuelyator.mydistro.feature.customer.data.MockOrderData
 import java.time.format.DateTimeFormatter
 
 @Composable
 fun CustomerOrderStatusRoute(
     orderId: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    viewModel: CustomerOrderStatusViewModel = hiltViewModel()
 ) {
-    val order = MockOrderData.orders.find { it.id == orderId }
-    
-    if (order != null) {
-        CustomerOrderStatusScreen(order = order, onBack = onBack)
-    } else {
-        Scaffold(
-            topBar = { MyDistroTopBar(title = "Order Status", onBack = onBack) },
-            containerColor = MaterialTheme.colorScheme.background
-        ) { padding ->
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("Order not found")
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    when {
+        uiState.isLoading && uiState.order == null -> {
+            Scaffold(
+                topBar = { MyDistroTopBar(title = "Order Status", onBack = onBack) },
+                containerColor = MaterialTheme.colorScheme.background
+            ) { padding ->
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
             }
+        }
+        uiState.order == null -> {
+            Scaffold(
+                topBar = { MyDistroTopBar(title = "Order Status", onBack = onBack) },
+                containerColor = MaterialTheme.colorScheme.background
+            ) { padding ->
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(uiState.error ?: "Order not found ($orderId)")
+                }
+            }
+        }
+        else -> {
+            val payment = uiState.paymentDetail
+            val paymentStatusLabel = buildString {
+                val status = payment?.status ?: uiState.paymentStatus?.status
+                if (status != null) {
+                    append(
+                        "Payment: ${com.emmanuelyator.mydistro.feature.customer.cart.CustomerCheckout.paymentStatusLabel(status)}"
+                    )
+                }
+                (payment?.mpesaReceiptNumber ?: uiState.paymentStatus?.mpesaReceiptNumber)
+                    ?.let { append(" · Receipt $it") }
+                payment?.method?.let { append(" · $it") }
+                payment?.amount?.let { append(" · KSh ${it.toInt()}") }
+                uiState.paymentStatus?.failureReason?.let { append(" · $it") }
+            }.ifBlank { null }
+
+            CustomerOrderStatusScreen(
+                order = uiState.order!!,
+                paymentStatusLabel = paymentStatusLabel,
+                trackingLabel = uiState.trackingLabel,
+                otpMessage = uiState.otpMessage,
+                canRequestOtp = uiState.canRequestDeliveryOtp(),
+                isRequestingOtp = uiState.isRequestingOtp,
+                canCancel = uiState.canCancel(),
+                isCancelling = uiState.isCancelling,
+                onRequestOtp = viewModel::requestDeliveryOtp,
+                onCancel = viewModel::cancelOrder,
+                onBack = onBack
+            )
         }
     }
 }
@@ -67,7 +118,16 @@ fun CustomerOrderStatusRoute(
 @Composable
 fun CustomerOrderStatusScreen(
     order: Order,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    paymentStatusLabel: String? = null,
+    trackingLabel: String? = null,
+    otpMessage: String? = null,
+    canRequestOtp: Boolean = false,
+    isRequestingOtp: Boolean = false,
+    canCancel: Boolean = false,
+    isCancelling: Boolean = false,
+    onRequestOtp: () -> Unit = {},
+    onCancel: () -> Unit = {}
 ) {
     Scaffold(
         topBar = {
@@ -84,7 +144,6 @@ fun CustomerOrderStatusScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -93,44 +152,99 @@ fun CustomerOrderStatusScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "#${order.id}",
+                    text = "#${order.displayId}",
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                     color = MyDistroTheme.colors.heroSurface
                 )
                 OrderStatusBadge(status = order.status)
             }
-            
+
+            if (paymentStatusLabel != null) {
+                Text(
+                    text = paymentStatusLabel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MyDistroTheme.colors.textSecondary,
+                    modifier = Modifier.padding(horizontal = Dimens.screenPadding)
+                )
+                Spacer(modifier = Modifier.height(Spacing.md))
+            }
+
+            if (trackingLabel != null) {
+                Text(
+                    text = trackingLabel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MyDistroTheme.colors.info,
+                    modifier = Modifier.padding(horizontal = Dimens.screenPadding)
+                )
+                Spacer(modifier = Modifier.height(Spacing.md))
+            }
+
             Spacer(modifier = Modifier.height(Spacing.lg))
-            
-            // Timeline
+
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = Dimens.screenPadding)
             ) {
-                // For a real app, you'd match the order's status history
-                val currentIndex = OrderStatusTimeline.indexOf(order.status).takeIf { it >= 0 } ?: OrderStatusTimeline.size
-                
+                val currentIndex = OrderStatusTimeline.indexOf(order.status)
+                    .takeIf { it >= 0 } ?: OrderStatusTimeline.size
+
                 OrderStatusTimeline.forEachIndexed { index, status ->
                     val isCompleted = index < currentIndex
                     val isCurrent = index == currentIndex
                     val isPending = index > currentIndex
-                    
+
                     TimelineNode(
                         status = status,
                         isCompleted = isCompleted,
                         isCurrent = isCurrent,
                         isPending = isPending,
                         isLast = index == OrderStatusTimeline.lastIndex,
-                        timestamp = if (isCompleted || isCurrent) order.date.format(DateTimeFormatter.ofPattern("MMM d, yyyy • h:mm a")) else null
+                        timestamp = if (isCompleted || isCurrent) {
+                            order.date.format(DateTimeFormatter.ofPattern("MMM d, yyyy • h:mm a"))
+                        } else null
                     )
                 }
             }
-            
-            Spacer(modifier = Modifier.weight(1f))
+
             Spacer(modifier = Modifier.height(Spacing.xl))
-            
-            // Info Box
+
+            if (canRequestOtp) {
+                Button(
+                    onClick = onRequestOtp,
+                    enabled = !isRequestingOtp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Dimens.screenPadding)
+                ) {
+                    Text(if (isRequestingOtp) "Sending OTP…" else "Request delivery OTP")
+                }
+                Spacer(modifier = Modifier.height(Spacing.md))
+            }
+
+            if (canCancel) {
+                Button(
+                    onClick = onCancel,
+                    enabled = !isCancelling,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Dimens.screenPadding)
+                ) {
+                    Text(if (isCancelling) "Cancelling…" else "Cancel order")
+                }
+                Spacer(modifier = Modifier.height(Spacing.md))
+            }
+
+            if (otpMessage != null) {
+                Text(
+                    text = otpMessage,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MyDistroTheme.colors.textSecondary,
+                    modifier = Modifier.padding(horizontal = Dimens.screenPadding)
+                )
+                Spacer(modifier = Modifier.height(Spacing.md))
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -148,7 +262,14 @@ fun CustomerOrderStatusScreen(
                     )
                     Spacer(modifier = Modifier.width(Spacing.md))
                     Text(
-                        text = "Your order is confirmed! Payment will be unlocked once distributor confirms stock.",
+                        text = when (order.status) {
+                            OrderStatus.IN_TRANSIT ->
+                                "Your order is on the way. Request a delivery OTP when the driver arrives."
+                            OrderStatus.PAYMENT_PENDING ->
+                                "Awaiting M-Pesa payment confirmation."
+                            else ->
+                                "Track your order status above. Pull to refresh from the orders list."
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MyDistroTheme.colors.info
                     )
@@ -172,12 +293,10 @@ private fun TimelineNode(
             .fillMaxWidth()
             .height(72.dp)
     ) {
-        // Left Column (Icon + Line)
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.width(32.dp)
         ) {
-            // Icon
             Box(
                 modifier = Modifier
                     .size(24.dp)
@@ -216,8 +335,7 @@ private fun TimelineNode(
                     )
                 }
             }
-            
-            // Line
+
             if (!isLast) {
                 Box(
                     modifier = Modifier
@@ -225,21 +343,20 @@ private fun TimelineNode(
                         .weight(1f)
                         .padding(vertical = 4.dp)
                         .background(
-                            if (isCompleted && !isCurrent) MyDistroTheme.colors.success 
-                            else if (isCurrent) MyDistroTheme.colors.warning 
+                            if (isCompleted && !isCurrent) MyDistroTheme.colors.success
+                            else if (isCurrent) MyDistroTheme.colors.warning
                             else MyDistroTheme.colors.border
                         )
                 )
             }
         }
-        
+
         Spacer(modifier = Modifier.width(Spacing.md))
-        
-        // Right Column (Text)
+
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(bottom = 16.dp) // space below text
+                .padding(bottom = 16.dp)
         ) {
             Text(
                 text = status.label,
@@ -248,7 +365,7 @@ private fun TimelineNode(
                 ),
                 color = if (isPending) MyDistroTheme.colors.textSecondary else MyDistroTheme.colors.textPrimary
             )
-            
+
             if (timestamp != null) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
@@ -257,7 +374,7 @@ private fun TimelineNode(
                     color = MyDistroTheme.colors.textTertiary
                 )
             }
-            
+
             if (isCurrent && status == OrderStatus.PAYMENT_PENDING) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(

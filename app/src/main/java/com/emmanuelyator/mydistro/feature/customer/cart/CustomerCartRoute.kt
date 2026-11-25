@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,14 +24,19 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Payments
 import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,6 +44,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -47,13 +53,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.emmanuelyator.mydistro.core.designsystem.component.MyDistroCard
 import com.emmanuelyator.mydistro.core.designsystem.component.MyDistroPrimaryButton
+import com.emmanuelyator.mydistro.core.designsystem.component.MyDistroTextField
 import com.emmanuelyator.mydistro.core.designsystem.component.MyDistroTopBar
 import com.emmanuelyator.mydistro.core.designsystem.theme.Dimens
 import com.emmanuelyator.mydistro.core.designsystem.theme.MyDistroTheme
 import com.emmanuelyator.mydistro.core.designsystem.theme.Spacing
-import com.emmanuelyator.mydistro.feature.customer.data.MockOrderData
+import com.emmanuelyator.mydistro.feature.customer.address.AddDeliveryAddressForm
+import com.emmanuelyator.mydistro.feature.customer.address.DeliveryAddressList
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomerCartRoute(
     viewModel: CustomerCartViewModel = hiltViewModel(),
@@ -61,11 +69,12 @@ fun CustomerCartRoute(
     onAddMoreProducts: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var showPaymentSheet by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    var phoneNumber by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    var showPaymentSheet by remember { mutableStateOf(false) }
+    var showAddressSheet by remember { mutableStateOf(false) }
+    var showAddAddress by remember { mutableStateOf(false) }
+    var phoneNumber by remember { mutableStateOf("") }
 
     if (uiState.paymentMessage != null) {
-        // We could show a toast here, but onCheckoutSuccess will navigate away
         showPaymentSheet = false
     }
 
@@ -74,14 +83,92 @@ fun CustomerCartRoute(
         onUpdateQuantity = viewModel::onUpdateQuantity,
         onRemoveProduct = viewModel::onRemoveProduct,
         onCheckout = {
-            showPaymentSheet = true
+            if (uiState.selectedAddress == null) {
+                showAddressSheet = true
+                showAddAddress = uiState.addresses.isEmpty()
+            } else {
+                showPaymentSheet = true
+            }
+        },
+        onChangeAddress = {
+            showAddressSheet = true
+            showAddAddress = false
         },
         onAddMoreProducts = onAddMoreProducts
     )
 
+    if (showAddressSheet) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                showAddressSheet = false
+                showAddAddress = false
+            }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Dimens.screenPadding)
+                    .padding(bottom = 32.dp)
+            ) {
+                if (showAddAddress) {
+                    AddDeliveryAddressForm(
+                        isSaving = uiState.isSavingAddress,
+                        error = uiState.addressError,
+                        onSave = { address ->
+                            viewModel.addAddress(address) {
+                                showAddAddress = false
+                                showAddressSheet = false
+                            }
+                        }
+                    )
+                } else {
+                    Text(
+                        text = "Delivery address",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MyDistroTheme.colors.textPrimary
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.md))
+                    if (uiState.addressesLoading) {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                    } else if (uiState.addresses.isEmpty()) {
+                        Text(
+                            text = uiState.addressError
+                                ?: "No saved addresses yet. Add where this order should be delivered.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MyDistroTheme.colors.textSecondary
+                        )
+                    } else {
+                        DeliveryAddressList(
+                            addresses = uiState.addresses,
+                            selectedId = uiState.selectedAddress?.id,
+                            onSelect = {
+                                viewModel.selectAddress(it)
+                                showAddressSheet = false
+                            }
+                        )
+                    }
+                    if (uiState.addressError != null && uiState.addresses.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(Spacing.sm))
+                        Text(
+                            text = uiState.addressError ?: "",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(Spacing.lg))
+                    MyDistroPrimaryButton(
+                        text = "Add new address",
+                        onClick = { showAddAddress = true },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+    }
+
     if (showPaymentSheet) {
-        androidx.compose.material3.ModalBottomSheet(
-            onDismissRequest = { 
+        ModalBottomSheet(
+            onDismissRequest = {
                 showPaymentSheet = false
                 viewModel.resetCheckoutState()
             }
@@ -100,29 +187,42 @@ fun CustomerCartRoute(
                 )
                 Spacer(modifier = Modifier.height(Spacing.md))
                 Text(
-                    text = "Enter your M-Pesa phone number. A payment prompt will be sent to your phone.",
+                    text = "Enter your M-Pesa phone number. A payment prompt will be sent to your phone. The order leaves the warehouse only after payment succeeds.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MyDistroTheme.colors.textSecondary,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(Spacing.xl))
-
-                com.emmanuelyator.mydistro.core.designsystem.component.MyDistroTextField(
+                Spacer(modifier = Modifier.height(Spacing.md))
+                uiState.selectedAddress?.let { address ->
+                    Text(
+                        text = "Deliver to ${address.label}: ${address.summary}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MyDistroTheme.colors.textSecondary,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.md))
+                }
+                MyDistroTextField(
                     value = phoneNumber,
                     onValueChange = { phoneNumber = it },
                     placeholder = "07XXXXXXXX",
                     label = "Phone Number",
-                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone
+                    keyboardType = KeyboardType.Phone
                 )
-
                 Spacer(modifier = Modifier.height(Spacing.xxl))
-
                 if (uiState.isCheckingOut) {
-                    androidx.compose.material3.CircularProgressIndicator()
+                    CircularProgressIndicator()
+                    Spacer(modifier = Modifier.height(Spacing.md))
+                    Text(
+                        text = "Waiting for M-Pesa… complete the prompt on your phone.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MyDistroTheme.colors.textSecondary,
+                        textAlign = TextAlign.Center
+                    )
                 } else {
                     MyDistroPrimaryButton(
                         text = "Pay KSh %,d".format(uiState.grandTotal),
-                        enabled = phoneNumber.length >= 10,
+                        enabled = phoneNumber.length >= 10 && uiState.canCheckout,
                         onClick = {
                             viewModel.onCheckout(phoneNumber) {
                                 onCheckoutSuccess()
@@ -131,14 +231,13 @@ fun CustomerCartRoute(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
-
                 if (uiState.checkoutError != null) {
                     Spacer(modifier = Modifier.height(Spacing.md))
                     Text(
                         text = uiState.checkoutError ?: "",
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        textAlign = TextAlign.Center
                     )
                 }
             }
@@ -152,6 +251,7 @@ fun CustomerCartScreen(
     onUpdateQuantity: (String, Int) -> Unit,
     onRemoveProduct: (String) -> Unit,
     onCheckout: () -> Unit,
+    onChangeAddress: () -> Unit,
     onAddMoreProducts: () -> Unit
 ) {
     Scaffold(
@@ -172,6 +272,7 @@ fun CustomerCartScreen(
                     MyDistroPrimaryButton(
                         text = "Checkout - KSh %,d".format(uiState.grandTotal),
                         onClick = onCheckout,
+                        enabled = !uiState.isCheckingOut,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -208,7 +309,7 @@ fun CustomerCartScreen(
                     SectionHeader(title = "Order Items", actionText = "Add more products", onAction = onAddMoreProducts)
                     Spacer(modifier = Modifier.height(Spacing.sm))
                 }
-                
+
                 items(uiState.items, key = { it.product.id }) { item ->
                     CartItemCard(
                         item = item,
@@ -225,17 +326,50 @@ fun CustomerCartScreen(
                 }
 
                 item {
-                    SectionHeader(title = "Delivery Address", actionText = "Change", onAction = {})
+                    SectionHeader(
+                        title = "Delivery Address",
+                        actionText = if (uiState.addresses.isEmpty()) "Add" else "Change",
+                        onAction = onChangeAddress
+                    )
                     Spacer(modifier = Modifier.height(Spacing.sm))
                     MyDistroCard(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = Dimens.screenPadding),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = Dimens.screenPadding)
+                            .clickable(onClick = onChangeAddress),
                         contentPadding = Spacing.lg
                     ) {
-                        Text(
-                            text = "Nairobi, Kenya",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
-                            color = MyDistroTheme.colors.textPrimary
-                        )
+                        val selected = uiState.selectedAddress
+                        when {
+                            uiState.addressesLoading && selected == null -> {
+                                Text(
+                                    text = "Loading addresses…",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MyDistroTheme.colors.textSecondary
+                                )
+                            }
+                            selected != null -> {
+                                Text(
+                                    text = selected.label,
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium),
+                                    color = MyDistroTheme.colors.textPrimary
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = selected.summary,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MyDistroTheme.colors.textSecondary
+                                )
+                            }
+                            else -> {
+                                Text(
+                                    text = uiState.addressError
+                                        ?: "Tap to choose or add a delivery address",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MyDistroTheme.colors.textSecondary
+                                )
+                            }
+                        }
                     }
                     Spacer(modifier = Modifier.height(Spacing.xl))
                 }
@@ -272,12 +406,11 @@ fun CustomerCartScreen(
                                     color = MyDistroTheme.colors.textPrimary
                                 )
                                 Text(
-                                    text = "Pay after stock confirmation",
+                                    text = "Order leaves only after payment succeeds",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MyDistroTheme.colors.textSecondary
                                 )
                             }
-                            // Mock radio button
                             Box(
                                 modifier = Modifier
                                     .size(24.dp)
@@ -337,7 +470,6 @@ private fun CartItemCard(
         contentPadding = Spacing.md
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // Image
             Box(
                 modifier = Modifier
                     .size(64.dp)
@@ -354,10 +486,9 @@ private fun CartItemCard(
                     )
                 }
             }
-            
+
             Spacer(modifier = Modifier.width(Spacing.md))
-            
-            // Details
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "${item.product.name} ${item.product.unitLabel}",
@@ -373,8 +504,7 @@ private fun CartItemCard(
                     color = MyDistroTheme.colors.textPrimary
                 )
             }
-            
-            // Actions
+
             Column(horizontalAlignment = Alignment.End) {
                 IconButton(onClick = onRemove, modifier = Modifier.size(24.dp)) {
                     Icon(
