@@ -26,7 +26,9 @@ data class Product(
     /** Price in Kenyan shillings (whole units for the prototype). */
     val priceKes: Int,
     val imageGallery: List<String> = emptyList(),
-    val inStock: Boolean = true
+    val inStock: Boolean = true,
+    /** Distributor organization that owns this stock offer — required for checkout. */
+    val organizationId: String = ""
 ) {
     val priceLabel: String get() = "KSh %,d".format(priceKes)
     val imageUrl: String? get() = imageGallery.firstOrNull()

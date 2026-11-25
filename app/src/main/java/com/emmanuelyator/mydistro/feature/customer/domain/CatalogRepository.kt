@@ -10,6 +10,9 @@ interface CatalogRepository {
         categoryId: String?,
         query: String
     ): Flow<List<Product>>
+
+    /** Pull latest catalog from the network. Mock implementations no-op. */
+    suspend fun refresh() {}
 }
 
 /**

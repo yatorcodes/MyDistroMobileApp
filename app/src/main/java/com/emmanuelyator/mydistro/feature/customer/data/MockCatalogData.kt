@@ -81,7 +81,7 @@ internal object MockCatalogData {
         // Soaps
         Product("c963f35a-c6da-47e8-abf5-1f64bf4062b1", "Omo Washing Powder", "Omo", "cat-laundry", "1kg", 340, listOf("android.resource://com.emmanuelyator.mydistro/" + com.emmanuelyator.mydistro.R.drawable.img_omo_washing_powder)),
         Product("1af00c2f-91cd-40ad-9716-67ab482e9461", "Sunlight Bar Soap", "Sunlight", "cat-laundry", "800g", 180, listOf("android.resource://com.emmanuelyator.mydistro/" + com.emmanuelyator.mydistro.R.drawable.img_sunlight_bar_soap)),
-        Product("ac6f907d-a0a9-450b-845a-493482eb4539", "Geisha Bath Soap", "Geisha", "cat-bath", "175g", 95, listOf("android.resource://com.emmanuelyator.mydistro/" + com.emmanuelyator.mydistro.R.drawable.img_geisha_bath_soap)),
+        Product("ac6f907d-a0a9-450b-845a-493482eb4539", "Geisha Bath Soap", "Geisha", "cat-bath", "175g", 10, listOf("android.resource://com.emmanuelyator.mydistro/" + com.emmanuelyator.mydistro.R.drawable.img_geisha_bath_soap)),
         Product("c0fafba2-f149-48bc-8f72-bde35d698934", "Vim Dishwashing Paste", "Vim", "cat-dish", "500g", 160, listOf("android.resource://com.emmanuelyator.mydistro/" + com.emmanuelyator.mydistro.R.drawable.img_vim_dishwashing_soap))
     )
 }

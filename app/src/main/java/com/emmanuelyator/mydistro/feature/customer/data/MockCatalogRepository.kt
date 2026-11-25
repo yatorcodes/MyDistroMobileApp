@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.map
 @Singleton
 class MockCatalogRepository @Inject constructor() : CatalogRepository {
 
+    override suspend fun refresh() = Unit
+
     override fun observeGroups(): Flow<List<CategoryGroup>> =
         flowOf(MockCatalogData.groups)
 

@@ -30,6 +30,22 @@ android {
         }
         val mapboxToken = localProperties.getProperty("MAPBOX_ACCESS_TOKEN") ?: ""
         resValue("string", "mapbox_access_token", mapboxToken)
+
+        // Default true when local.properties is missing or the key is absent.
+        val useMockData = localProperties
+            .getProperty("USE_MOCK_DATA", "true")
+            .equals("true", ignoreCase = true)
+        buildConfigField("boolean", "USE_MOCK_DATA", useMockData.toString())
+
+        // Prefer BACKEND_BASE_URL (e.g. Render). Else http://BACKEND_HOST:BACKEND_PORT/
+        // for a local API (emulator: 10.0.2.2, phone on LAN: PC IP).
+        val debugBaseUrl = localProperties.getProperty("BACKEND_BASE_URL")?.trim()?.takeIf { it.isNotEmpty() }
+            ?: run {
+                val host = localProperties.getProperty("BACKEND_HOST", "10.0.2.2")
+                val port = localProperties.getProperty("BACKEND_PORT", "8080")
+                "http://$host:$port/"
+            }
+        buildConfigField("String", "BASE_URL", "\"$debugBaseUrl\"")
     }
 
     buildTypes {
@@ -39,6 +55,25 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            buildConfigField(
+                "String",
+                "BASE_URL",
+                "\"https://distro-backend-09e7.onrender.com/\""
+            )
+        }
+        debug {
+            val localProperties = Properties()
+            val localPropertiesFile = rootProject.file("local.properties")
+            if (localPropertiesFile.exists()) {
+                localProperties.load(localPropertiesFile.inputStream())
+            }
+            val debugBaseUrl = localProperties.getProperty("BACKEND_BASE_URL")?.trim()?.takeIf { it.isNotEmpty() }
+                ?: run {
+                    val host = localProperties.getProperty("BACKEND_HOST", "10.0.2.2")
+                    val port = localProperties.getProperty("BACKEND_PORT", "8080")
+                    "http://$host:$port/"
+                }
+            buildConfigField("String", "BASE_URL", "\"$debugBaseUrl\"")
         }
     }
     compileOptions {

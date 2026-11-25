@@ -14,37 +14,62 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.DeleteOutline
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.emmanuelyator.mydistro.core.designsystem.component.MyDistroCard
 import com.emmanuelyator.mydistro.core.designsystem.component.MyDistroPrimaryButton
 import com.emmanuelyator.mydistro.core.designsystem.component.MyDistroTopBar
 import com.emmanuelyator.mydistro.core.designsystem.theme.Dimens
 import com.emmanuelyator.mydistro.core.designsystem.theme.MyDistroTheme
 import com.emmanuelyator.mydistro.core.designsystem.theme.Spacing
+import com.emmanuelyator.mydistro.core.model.DeliveryAddress
+import com.emmanuelyator.mydistro.feature.customer.address.AddDeliveryAddressForm
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CustomerDeliveryAddressesRoute(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    viewModel: DeliveryAddressesViewModel = hiltViewModel()
 ) {
-    CustomerDeliveryAddressesScreen(onBack = onBack)
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    CustomerDeliveryAddressesScreen(
+        uiState = uiState,
+        onBack = onBack,
+        onAddNew = { viewModel.showAddForm(true) }
+    )
+
+    if (uiState.showAddForm) {
+        ModalBottomSheet(onDismissRequest = { viewModel.showAddForm(false) }) {
+            AddDeliveryAddressForm(
+                isSaving = uiState.isSaving,
+                error = uiState.error,
+                onSave = viewModel::addAddress,
+                modifier = Modifier.padding(horizontal = Dimens.screenPadding)
+            )
+        }
+    }
 }
 
 @Composable
 fun CustomerDeliveryAddressesScreen(
-    onBack: () -> Unit
+    uiState: DeliveryAddressesUiState,
+    onBack: () -> Unit,
+    onAddNew: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -58,42 +83,58 @@ fun CustomerDeliveryAddressesScreen(
             Box(modifier = Modifier.padding(Dimens.screenPadding)) {
                 MyDistroPrimaryButton(
                     text = "Add New Address",
-                    onClick = { /* TODO: Open add address sheet */ },
+                    onClick = onAddNew,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Dimens.screenPadding, vertical = Spacing.lg)
-        ) {
-            AddressCard(
-                title = "Main Shop",
-                address = "Jane's Mini Mart\nNairobi CBD, Moi Avenue",
-                isDefault = true
-            )
-            
-            Spacer(modifier = Modifier.height(Spacing.md))
-            
-            AddressCard(
-                title = "Branch 2",
-                address = "Jane's Groceries\nWestlands, Woodvale Grove",
-                isDefault = false
-            )
+        when {
+            uiState.isLoading && uiState.addresses.isEmpty() -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+            else -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = Dimens.screenPadding, vertical = Spacing.lg)
+                ) {
+                    val loadError = uiState.error
+                    if (loadError != null && uiState.addresses.isEmpty()) {
+                        Text(
+                            text = loadError,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    } else if (uiState.addresses.isEmpty()) {
+                        Text(
+                            text = "No saved addresses yet. Add the shops or places where you receive deliveries.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MyDistroTheme.colors.textSecondary
+                        )
+                    } else {
+                        uiState.addresses.forEachIndexed { index, address ->
+                            if (index > 0) Spacer(modifier = Modifier.height(Spacing.md))
+                            AddressCard(address = address)
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun AddressCard(
-    title: String,
-    address: String,
-    isDefault: Boolean
-) {
+private fun AddressCard(address: DeliveryAddress) {
     MyDistroCard(
         modifier = Modifier.fillMaxWidth(),
         contentPadding = Spacing.md
@@ -105,22 +146,26 @@ private fun AddressCard(
             Icon(
                 imageVector = Icons.Outlined.LocationOn,
                 contentDescription = null,
-                tint = if (isDefault) MaterialTheme.colorScheme.primary else MyDistroTheme.colors.textSecondary,
+                tint = if (address.isDefault) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MyDistroTheme.colors.textSecondary
+                },
                 modifier = Modifier.size(24.dp).padding(top = 2.dp)
             )
-            
+
             Spacer(modifier = Modifier.width(Spacing.md))
-            
+
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = title,
+                        text = address.label,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MyDistroTheme.colors.textPrimary
                     )
-                    
-                    if (isDefault) {
+
+                    if (address.isDefault) {
                         Spacer(modifier = Modifier.width(Spacing.sm))
                         Text(
                             text = "DEFAULT",
@@ -135,34 +180,21 @@ private fun AddressCard(
                         )
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.height(Spacing.xs))
-                
+
                 Text(
-                    text = address,
+                    text = address.summary,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MyDistroTheme.colors.textSecondary
                 )
-            }
-            
-            Column {
-                IconButton(onClick = { /* TODO */ }, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        imageVector = Icons.Outlined.Edit,
-                        contentDescription = "Edit",
-                        tint = MyDistroTheme.colors.textSecondary,
-                        modifier = Modifier.size(20.dp)
+                if (address.recipientName.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    Text(
+                        text = "${address.recipientName} · ${address.phoneNumber}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MyDistroTheme.colors.textSecondary
                     )
-                }
-                if (!isDefault) {
-                    IconButton(onClick = { /* TODO */ }, modifier = Modifier.size(32.dp)) {
-                        Icon(
-                            imageVector = Icons.Outlined.DeleteOutline,
-                            contentDescription = "Delete",
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
                 }
             }
         }
