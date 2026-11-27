@@ -10,12 +10,14 @@ import com.emmanuelyator.mydistro.feature.customer.data.OrderItemRequest
 import com.emmanuelyator.mydistro.feature.customer.data.PaymentInitiateResponse
 import com.emmanuelyator.mydistro.feature.customer.data.PaymentStatusResponse
 import com.emmanuelyator.mydistro.feature.customer.domain.OrderRepository
+import com.emmanuelyator.mydistro.feature.customer.domain.PaymentProvider
 import com.emmanuelyator.mydistro.feature.driver.data.LocationPingResponse
 import java.time.LocalDateTime
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -52,6 +54,7 @@ class CustomerCheckoutTest {
                 CartItemUiModel(product("p2", "org-b"), 1)
             ),
             address = address,
+            provider = PaymentProvider.DARAJA,
             phoneNumber = "0712345678"
         )
 
@@ -65,9 +68,33 @@ class CustomerCheckoutTest {
         val error = CustomerCheckout.validate(
             items = listOf(CartItemUiModel(product("p1", "org-a"), 1)),
             address = null,
+            provider = PaymentProvider.DARAJA,
             phoneNumber = "0712345678"
         )
         assertEquals("Choose a delivery address before paying.", error)
+    }
+
+    @Test
+    fun `rejects invalid Daraja phone client-side`() {
+        val error = CustomerCheckout.validate(
+            items = listOf(CartItemUiModel(product("p1", "org-a"), 1)),
+            address = address,
+            provider = PaymentProvider.DARAJA,
+            phoneNumber = "123"
+        )
+        assertTrue(error!!.contains("Kenyan"))
+    }
+
+    @Test
+    fun `Paystack does not require a phone number`() {
+        assertNull(
+            CustomerCheckout.validate(
+                items = listOf(CartItemUiModel(product("p1", "org-a"), 1)),
+                address = address,
+                provider = PaymentProvider.PAYSTACK,
+                phoneNumber = null
+            )
+        )
     }
 
     @Test
@@ -84,6 +111,7 @@ class CustomerCheckoutTest {
         val (result, key) = checkout.checkout(
             items = listOf(CartItemUiModel(product("p1", "org-a"), 2)),
             address = address,
+            provider = PaymentProvider.DARAJA,
             phoneNumber = "0712345678"
         )
 
@@ -92,8 +120,39 @@ class CustomerCheckoutTest {
         assertEquals(1, repo.placeOrderCalls)
         assertEquals(1, repo.initiateCalls)
         assertEquals("key-1", repo.lastIdempotencyKey)
+        assertEquals(PaymentProvider.DARAJA, repo.lastProvider)
         assertEquals("org-a", repo.lastOrganizationId)
         assertEquals(listOf(OrderItemRequest("p1", 2)), repo.lastItems)
+    }
+
+    @Test
+    fun `Paystack opens authorization URL then waits for server confirmation`() = runBlocking {
+        val repo = FakeOrderRepository(
+            statusSequence = listOf("PENDING", "CONFIRMED"),
+            initiateResponse = PaymentInitiateResponse(
+                paymentId = "pay-1",
+                status = "PENDING",
+                provider = "PAYSTACK",
+                authorizationUrl = "https://checkout.paystack.com/test",
+                providerMode = "TEST",
+                customerMessage = "Open Paystack"
+            )
+        )
+        var openedUrl: String? = null
+        val checkout = CustomerCheckout(repo, pollIntervalMs = 1, pollTimeoutMs = 1_000, delay = {})
+
+        val (result, _) = checkout.checkout(
+            items = listOf(CartItemUiModel(product("p1", "org-a"), 1)),
+            address = address,
+            provider = PaymentProvider.PAYSTACK,
+            phoneNumber = null,
+            onAuthorizationUrl = { url, _ -> openedUrl = url }
+        )
+
+        assertEquals("https://checkout.paystack.com/test", openedUrl)
+        assertTrue(result is CheckoutResult.Paid)
+        assertEquals(PaymentProvider.PAYSTACK, repo.lastProvider)
+        assertNull(repo.lastPhone)
     }
 
     @Test
@@ -104,6 +163,7 @@ class CustomerCheckoutTest {
         val (result, _) = checkout.checkout(
             items = listOf(CartItemUiModel(product("p1", "org-a"), 1)),
             address = address,
+            provider = PaymentProvider.DARAJA,
             phoneNumber = "0712345678"
         )
 
@@ -118,6 +178,7 @@ class CustomerCheckoutTest {
         val (result, key) = checkout.checkout(
             items = listOf(CartItemUiModel(product("p1", "org-a"), 1)),
             address = address,
+            provider = PaymentProvider.DARAJA,
             phoneNumber = "0712345678",
             idempotencyKey = "retry-key"
         )
@@ -141,6 +202,7 @@ class CustomerCheckoutTest {
         val (_, key) = checkout.checkout(
             items = listOf(CartItemUiModel(product("p1", "org-a"), 1)),
             address = address,
+            provider = PaymentProvider.DARAJA,
             phoneNumber = "0712345678",
             idempotencyKey = "same-attempt"
         )
@@ -154,16 +216,25 @@ class CustomerCheckoutTest {
         assertEquals("Paid", CustomerCheckout.paymentStatusLabel("RECONCILED"))
         assertEquals("Paid", CustomerCheckout.paymentStatusLabel("CONFIRMED"))
         assertEquals("Failed", CustomerCheckout.paymentStatusLabel("FAILED"))
+        assertEquals("TEST (sandbox)", CustomerCheckout.providerModeLabel("TEST"))
     }
 
     private class FakeOrderRepository(
-        private val statusSequence: List<String> = listOf("CONFIRMED")
+        private val statusSequence: List<String> = listOf("CONFIRMED"),
+        private val initiateResponse: PaymentInitiateResponse = PaymentInitiateResponse(
+            paymentId = "pay-1",
+            status = "PENDING",
+            customerMessage = "STK sent",
+            provider = "DARAJA"
+        )
     ) : OrderRepository {
         var placeOrderCalls = 0
         var initiateCalls = 0
         var lastIdempotencyKey: String? = null
         var lastOrganizationId: String? = null
         var lastItems: List<OrderItemRequest> = emptyList()
+        var lastProvider: PaymentProvider? = null
+        var lastPhone: String? = null
         private var statusIndex = 0
 
         override fun observeOrders(): Flow<List<Order>> = flowOf(emptyList())
@@ -193,18 +264,15 @@ class CustomerCheckoutTest {
 
         override suspend fun initiatePayment(
             orderId: String,
-            phoneNumber: String,
+            provider: PaymentProvider,
+            phoneNumber: String?,
             idempotencyKey: String
         ): DataResult<PaymentInitiateResponse> {
             initiateCalls++
             lastIdempotencyKey = idempotencyKey
-            return DataResult.Success(
-                PaymentInitiateResponse(
-                    paymentId = "pay-1",
-                    status = "PENDING",
-                    customerMessage = "STK sent"
-                )
-            )
+            lastProvider = provider
+            lastPhone = phoneNumber
+            return DataResult.Success(initiateResponse)
         }
 
         override suspend fun getPaymentStatus(orderId: String): DataResult<PaymentStatusResponse> {

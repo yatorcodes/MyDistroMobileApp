@@ -2,21 +2,24 @@ package com.emmanuelyator.mydistro.feature.customer.cart
 
 import com.emmanuelyator.mydistro.core.common.AppError
 import com.emmanuelyator.mydistro.core.common.DataResult
+import com.emmanuelyator.mydistro.core.common.Validators
 import com.emmanuelyator.mydistro.core.model.DeliveryAddress
 import com.emmanuelyator.mydistro.feature.customer.data.OrderItemRequest
 import com.emmanuelyator.mydistro.feature.customer.domain.OrderRepository
+import com.emmanuelyator.mydistro.feature.customer.domain.PaymentProvider
 import java.util.UUID
 
-/** Outcome of placing an order and waiting for the M-Pesa prompt to settle. */
+/** Outcome of placing an order and waiting for the provider to settle. */
 sealed interface CheckoutResult {
     data class Paid(val orderId: String, val message: String) : CheckoutResult
     data class Failed(val message: String) : CheckoutResult
 }
 
 /**
- * Places one unpaid order for a single supplier, sends the STK prompt, and polls
- * until the payment is confirmed (or the window runs out). The cart is cleared
- * only after [CheckoutResult.Paid] so a failed or abandoned prompt keeps the items.
+ * Places one unpaid order for a single supplier, starts Daraja STK or Paystack
+ * card checkout, and polls LogiFlow status until confirmed (or the window runs
+ * out). Browser/SDK return is never treated as paid. The cart is cleared only
+ * after [CheckoutResult.Paid].
  */
 class CustomerCheckout(
     private val orderRepository: OrderRepository,
@@ -27,24 +30,30 @@ class CustomerCheckout(
 ) {
 
     /**
-     * [idempotencyKey] is reused when the same payment attempt is retried (for
-     * example after a network blip before the prompt was accepted). Pass null to
-     * mint a new key for a fresh attempt.
+     * [idempotencyKey] is reused when the same payment attempt is retried.
+     * Pass null to mint a new key for a fresh attempt (only after a definitive
+     * failure). [onAuthorizationUrl] opens Paystack hosted checkout; it is not
+     * confirmation of payment.
      */
     suspend fun checkout(
         items: List<CartItemUiModel>,
         address: DeliveryAddress?,
-        phoneNumber: String,
-        idempotencyKey: String? = null
+        provider: PaymentProvider,
+        phoneNumber: String?,
+        idempotencyKey: String? = null,
+        onAuthorizationUrl: suspend (url: String, providerMode: String?) -> Unit = { _, _ -> }
     ): Pair<CheckoutResult, String> {
         val key = idempotencyKey ?: newIdempotencyKey()
-        val validationError = validate(items, address, phoneNumber)
+        val validationError = validate(items, address, provider, phoneNumber)
         if (validationError != null) {
             return CheckoutResult.Failed(validationError) to key
         }
         val organizationId = items.map { it.product.organizationId.trim() }.distinct().single()
         val orderItems = items.map {
             OrderItemRequest(stockItemId = it.product.id, quantity = it.quantity)
+        }
+        val normalizedPhone = phoneNumber?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            Validators.toE164Kenya(it)
         }
 
         when (val placed = orderRepository.placeOrder(organizationId, address!!, orderItems)) {
@@ -54,17 +63,34 @@ class CustomerCheckout(
                 when (
                     val initiated = orderRepository.initiatePayment(
                         orderId = orderId,
-                        phoneNumber = phoneNumber.trim(),
+                        provider = provider,
+                        phoneNumber = if (provider == PaymentProvider.DARAJA) normalizedPhone else null,
                         idempotencyKey = key
                     )
                 ) {
                     is DataResult.Failure ->
                         return CheckoutResult.Failed(initiated.error.message) to key
                     is DataResult.Success -> {
-                        val promptMessage = initiated.data.customerMessage
-                            ?.takeIf { it.isNotBlank() }
-                            ?: "Payment prompt sent. Complete M-Pesa on your phone."
-                        val paid = awaitPayment(orderId)
+                        val mode = initiated.data.providerMode
+                        val authUrl = initiated.data.authorizationUrl?.takeIf { it.isNotBlank() }
+                        if (provider == PaymentProvider.PAYSTACK) {
+                            if (authUrl != null) {
+                                onAuthorizationUrl(authUrl, mode)
+                            }
+                        }
+                        val promptMessage = when (provider) {
+                            PaymentProvider.DARAJA ->
+                                initiated.data.customerMessage?.takeIf { it.isNotBlank() }
+                                    ?: "Payment prompt sent. Approve the M-Pesa STK request on your phone."
+                            PaymentProvider.PAYSTACK ->
+                                initiated.data.customerMessage?.takeIf { it.isNotBlank() }
+                                    ?: if (authUrl != null) {
+                                        "Complete card payment in the browser. We confirm only from our servers."
+                                    } else {
+                                        "Payment started. Refresh status — do not pay again yet."
+                                    }
+                        }
+                        val paid = awaitPayment(orderId, provider)
                         return when (paid) {
                             is DataResult.Success ->
                                 CheckoutResult.Paid(
@@ -80,7 +106,7 @@ class CustomerCheckout(
         }
     }
 
-    private suspend fun awaitPayment(orderId: String): DataResult<Unit> {
+    private suspend fun awaitPayment(orderId: String, provider: PaymentProvider): DataResult<Unit> {
         val deadline = System.currentTimeMillis() + pollTimeoutMs
         var lastFailure: String? = null
         while (System.currentTimeMillis() < deadline) {
@@ -100,11 +126,14 @@ class CustomerCheckout(
             }
             delay(pollIntervalMs)
         }
+        val waitingHint = when (provider) {
+            PaymentProvider.DARAJA ->
+                "Still waiting for M-Pesa. Complete the prompt on your phone, then open the order to check status. Your cart was kept."
+            PaymentProvider.PAYSTACK ->
+                "Still confirming card payment. Return from the browser and open the order — do not pay again yet. Your cart was kept."
+        }
         return DataResult.Failure(
-            AppError.Validation(
-                lastFailure?.takeIf { it.isNotBlank() }
-                    ?: "Still waiting for M-Pesa. Complete the prompt on your phone, then open the order to check status. Your cart was kept."
-            )
+            AppError.Validation(lastFailure?.takeIf { it.isNotBlank() } ?: waitingHint)
         )
     }
 
@@ -112,13 +141,18 @@ class CustomerCheckout(
         fun validate(
             items: List<CartItemUiModel>,
             address: DeliveryAddress?,
-            phoneNumber: String
+            provider: PaymentProvider,
+            phoneNumber: String?
         ): String? {
             if (items.isEmpty()) return "Cart is empty"
             if (address == null) return "Choose a delivery address before paying."
             if (address.summary.isBlank()) return "The selected delivery address is incomplete."
-            val phone = phoneNumber.trim()
-            if (phone.length < 10) return "Enter a valid M-Pesa phone number."
+            if (provider == PaymentProvider.DARAJA) {
+                val phone = phoneNumber?.trim().orEmpty()
+                if (!Validators.isValidKenyanPhone(phone)) {
+                    return "Enter a valid Kenyan M-Pesa phone number."
+                }
+            }
             val orgIds = items.map { it.product.organizationId.trim() }.filter { it.isNotEmpty() }.distinct()
             if (orgIds.isEmpty()) {
                 return "These products are missing a supplier. Refresh the catalogue and try again."
@@ -129,6 +163,13 @@ class CustomerCheckout(
             return null
         }
 
+        /** Back-compat for callers that still pass phone-only validation. */
+        fun validate(
+            items: List<CartItemUiModel>,
+            address: DeliveryAddress?,
+            phoneNumber: String
+        ): String? = validate(items, address, PaymentProvider.DARAJA, phoneNumber)
+
         fun paymentStatusLabel(status: String?): String = when (status?.uppercase()) {
             "CONFIRMED", "RECONCILED" -> "Paid"
             "PENDING", "INITIATING" -> "Pending"
@@ -136,6 +177,13 @@ class CustomerCheckout(
             "REVERSED" -> "Reversed"
             null, "" -> "Unknown"
             else -> status
+        }
+
+        fun providerModeLabel(mode: String?): String? = when (mode?.uppercase()) {
+            "TEST" -> "TEST (sandbox)"
+            "LIVE" -> "LIVE"
+            null, "" -> null
+            else -> mode
         }
     }
 }

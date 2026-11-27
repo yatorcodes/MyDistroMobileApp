@@ -4,6 +4,7 @@ import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
@@ -70,15 +71,21 @@ data class OrderPageDto(
 
 data class PaymentInitiateRequest(
     val orderId: String,
-    val phoneNumber: String,
-    val idempotencyKey: String? = null
+    val phoneNumber: String? = null,
+    val idempotencyKey: String? = null,
+    val provider: String? = null,
+    val orderType: String? = "CUSTOMER_ORDER"
 )
 
 data class PaymentInitiateResponse(
     val paymentId: String? = null,
     val mpesaCheckoutRequestId: String? = null,
     val status: String? = null,
-    val customerMessage: String? = null
+    val customerMessage: String? = null,
+    val paymentReference: String? = null,
+    val provider: String? = null,
+    val authorizationUrl: String? = null,
+    val providerMode: String? = null
 )
 
 data class PaymentStatusResponse(
@@ -87,7 +94,11 @@ data class PaymentStatusResponse(
     val status: String? = null,
     val amount: Double? = null,
     val mpesaReceiptNumber: String? = null,
-    val failureReason: String? = null
+    val failureReason: String? = null,
+    val paymentReference: String? = null,
+    val provider: String? = null,
+    val authorizationUrl: String? = null,
+    val providerMode: String? = null
 )
 
 data class OrderStatusUpdateRequest(
@@ -103,7 +114,11 @@ data class PaymentResponseDto(
     val status: String? = null,
     val mpesaReceiptNumber: String? = null,
     val initiatedAt: String? = null,
-    val confirmedAt: String? = null
+    val confirmedAt: String? = null,
+    val provider: String? = null,
+    val authorizationUrl: String? = null,
+    val providerMode: String? = null,
+    val paymentReference: String? = null
 )
 
 data class ProductDto(
@@ -149,7 +164,10 @@ interface CustomerApiService {
     suspend fun getOrder(@Path("orderId") orderId: String): Response<OrderResponseDto>
 
     @POST("api/v1/payments/initiate")
-    suspend fun initiatePayment(@Body request: PaymentInitiateRequest): Response<PaymentInitiateResponse>
+    suspend fun initiatePayment(
+        @Header("Idempotency-Key") idempotencyKey: String? = null,
+        @Body request: PaymentInitiateRequest
+    ): Response<PaymentInitiateResponse>
 
     @GET("api/v1/payments/{orderId}/status")
     suspend fun getPaymentStatus(@Path("orderId") orderId: String): Response<PaymentStatusResponse>

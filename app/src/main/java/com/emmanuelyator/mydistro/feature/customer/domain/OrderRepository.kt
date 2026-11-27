@@ -22,10 +22,14 @@ interface OrderRepository {
         items: List<OrderItemRequest>
     ): DataResult<Order>
 
-    /** Asks M-Pesa to send the payment prompt to [phoneNumber]. Safe to repeat with the same key. */
+    /**
+     * Starts customer-order payment. [phoneNumber] is required for Daraja STK;
+     * omit it for Paystack card. Safe to repeat with the same [idempotencyKey].
+     */
     suspend fun initiatePayment(
         orderId: String,
-        phoneNumber: String,
+        provider: PaymentProvider,
+        phoneNumber: String?,
         idempotencyKey: String
     ): DataResult<PaymentInitiateResponse>
     suspend fun getOrder(orderId: String): DataResult<Order>

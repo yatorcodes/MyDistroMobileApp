@@ -33,7 +33,10 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -60,6 +64,8 @@ import com.emmanuelyator.mydistro.core.designsystem.theme.MyDistroTheme
 import com.emmanuelyator.mydistro.core.designsystem.theme.Spacing
 import com.emmanuelyator.mydistro.feature.customer.address.AddDeliveryAddressForm
 import com.emmanuelyator.mydistro.feature.customer.address.DeliveryAddressList
+import com.emmanuelyator.mydistro.feature.customer.domain.PaymentProvider
+import com.emmanuelyator.mydistro.core.common.Validators
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -167,10 +173,20 @@ fun CustomerCartRoute(
     }
 
     if (showPaymentSheet) {
+        val context = LocalContext.current
+        val provider = uiState.selectedPaymentProvider
+        LaunchedEffect(uiState.pendingAuthorizationUrl) {
+            val url = uiState.pendingAuthorizationUrl ?: return@LaunchedEffect
+            runCatching {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            }
+        }
         ModalBottomSheet(
             onDismissRequest = {
-                showPaymentSheet = false
-                viewModel.resetCheckoutState()
+                if (!uiState.isCheckingOut) {
+                    showPaymentSheet = false
+                    viewModel.resetCheckoutState()
+                }
             }
         ) {
             Column(
@@ -181,13 +197,28 @@ fun CustomerCartRoute(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Pay with M-Pesa",
+                    text = "Pay for order",
                     style = MaterialTheme.typography.titleLarge,
                     color = MyDistroTheme.colors.textPrimary
                 )
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                Text(
+                    text = "KSh %,d".format(uiState.grandTotal),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MyDistroTheme.colors.textPrimary
+                )
+                uiState.providerModeLabel?.let { mode ->
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                    Text(
+                        text = mode,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MyDistroTheme.colors.textSecondary
+                    )
+                }
                 Spacer(modifier = Modifier.height(Spacing.md))
                 Text(
-                    text = "Enter your M-Pesa phone number. A payment prompt will be sent to your phone. The order leaves the warehouse only after payment succeeds.",
+                    text = "Choose one method. Do not start another payment while this one is pending. We confirm payment only from our servers — not from the browser or phone prompt alone.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MyDistroTheme.colors.textSecondary,
                     textAlign = TextAlign.Center
@@ -202,29 +233,85 @@ fun CustomerCartRoute(
                     )
                     Spacer(modifier = Modifier.height(Spacing.md))
                 }
-                MyDistroTextField(
-                    value = phoneNumber,
-                    onValueChange = { phoneNumber = it },
-                    placeholder = "07XXXXXXXX",
-                    label = "Phone Number",
-                    keyboardType = KeyboardType.Phone
-                )
-                Spacer(modifier = Modifier.height(Spacing.xxl))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                ) {
+                    PaymentProvider.entries.forEach { option ->
+                        val selected = provider == option
+                        TextButton(
+                            onClick = { viewModel.selectPaymentProvider(option) },
+                            enabled = !uiState.isCheckingOut,
+                            modifier = Modifier
+                                .weight(1f)
+                                .border(
+                                    width = if (selected) 2.dp else 1.dp,
+                                    color = if (selected) {
+                                        MyDistroTheme.colors.textPrimary
+                                    } else {
+                                        MyDistroTheme.colors.textSecondary.copy(alpha = 0.4f)
+                                    },
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                        ) {
+                            Text(
+                                text = option.label,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MyDistroTheme.colors.textPrimary,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(Spacing.md))
+                if (provider == PaymentProvider.DARAJA) {
+                    MyDistroTextField(
+                        value = phoneNumber,
+                        onValueChange = { phoneNumber = it },
+                        placeholder = "07XXXXXXXX",
+                        label = "M-Pesa phone number",
+                        keyboardType = KeyboardType.Phone
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.md))
+                }
                 if (uiState.isCheckingOut) {
                     CircularProgressIndicator()
                     Spacer(modifier = Modifier.height(Spacing.md))
                     Text(
-                        text = "Waiting for M-Pesa… complete the prompt on your phone.",
+                        text = when (provider) {
+                            PaymentProvider.DARAJA ->
+                                "STK prompt requested. Approve it on your handset. Do not mark this paid until we confirm."
+                            PaymentProvider.PAYSTACK ->
+                                "We’re confirming your card payment. Finish in the browser if it opened, then wait here — do not pay again."
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MyDistroTheme.colors.textSecondary,
                         textAlign = TextAlign.Center
                     )
+                    uiState.paymentMessage?.let { msg ->
+                        Spacer(modifier = Modifier.height(Spacing.sm))
+                        Text(
+                            text = msg,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MyDistroTheme.colors.textSecondary,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 } else {
+                    val payEnabled = uiState.canCheckout && when (provider) {
+                        PaymentProvider.DARAJA -> Validators.isValidKenyanPhone(phoneNumber)
+                        PaymentProvider.PAYSTACK -> true
+                    }
                     MyDistroPrimaryButton(
-                        text = "Pay KSh %,d".format(uiState.grandTotal),
-                        enabled = phoneNumber.length >= 10 && uiState.canCheckout,
+                        text = when (provider) {
+                            PaymentProvider.DARAJA -> "Pay with M-Pesa · KSh %,d".format(uiState.grandTotal)
+                            PaymentProvider.PAYSTACK -> "Pay with card · KSh %,d".format(uiState.grandTotal)
+                        },
+                        enabled = payEnabled,
                         onClick = {
-                            viewModel.onCheckout(phoneNumber) {
+                            viewModel.onCheckout(
+                                phoneNumber = if (provider == PaymentProvider.DARAJA) phoneNumber else null
+                            ) {
                                 onCheckoutSuccess()
                             }
                         },

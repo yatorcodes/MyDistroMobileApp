@@ -41,7 +41,11 @@ data class CartUiState(
     val isSavingAddress: Boolean = false,
     val isCheckingOut: Boolean = false,
     val checkoutError: String? = null,
-    val paymentMessage: String? = null
+    val paymentMessage: String? = null,
+    val selectedPaymentProvider: com.emmanuelyator.mydistro.feature.customer.domain.PaymentProvider =
+        com.emmanuelyator.mydistro.feature.customer.domain.PaymentProvider.DARAJA,
+    val providerModeLabel: String? = null,
+    val pendingAuthorizationUrl: String? = null
 ) {
     val grandTotal: Int get() = items.sumOf { it.totalCost }
     val canCheckout: Boolean = items.isNotEmpty() && selectedAddress != null && !isCheckingOut
@@ -170,19 +174,47 @@ class CustomerCartViewModel @Inject constructor(
         }
     }
 
-    fun onCheckout(phoneNumber: String, onComplete: () -> Unit) {
+    fun selectPaymentProvider(provider: com.emmanuelyator.mydistro.feature.customer.domain.PaymentProvider) {
+        if (checkoutState.value.isCheckingOut) return
+        checkoutState.update {
+            it.copy(
+                selectedPaymentProvider = provider,
+                checkoutError = null,
+                pendingAuthorizationUrl = null,
+                providerModeLabel = null
+            )
+        }
+    }
+
+    fun onCheckout(phoneNumber: String?, onComplete: () -> Unit) {
         if (checkoutState.value.isCheckingOut) return
         viewModelScope.launch {
+            val provider = checkoutState.value.selectedPaymentProvider
             checkoutState.update {
-                it.copy(isCheckingOut = true, checkoutError = null, paymentMessage = null)
+                it.copy(
+                    isCheckingOut = true,
+                    checkoutError = null,
+                    paymentMessage = null,
+                    pendingAuthorizationUrl = null
+                )
             }
             val items = uiState.value.items
             val address = checkoutState.value.selectedAddress
             val (result, key) = checkout.checkout(
                 items = items,
                 address = address,
+                provider = provider,
                 phoneNumber = phoneNumber,
-                idempotencyKey = paymentIdempotencyKey
+                idempotencyKey = paymentIdempotencyKey,
+                onAuthorizationUrl = { url, mode ->
+                    checkoutState.update {
+                        it.copy(
+                            pendingAuthorizationUrl = url,
+                            providerModeLabel = CustomerCheckout.providerModeLabel(mode),
+                            paymentMessage = "Complete card payment in the browser. We confirm only from our servers."
+                        )
+                    }
+                }
             )
             paymentIdempotencyKey = key
             when (result) {
@@ -193,7 +225,8 @@ class CustomerCartViewModel @Inject constructor(
                         it.copy(
                             isCheckingOut = false,
                             paymentMessage = result.message,
-                            checkoutError = null
+                            checkoutError = null,
+                            pendingAuthorizationUrl = null
                         )
                     }
                     onComplete()
@@ -214,7 +247,13 @@ class CustomerCartViewModel @Inject constructor(
 
     fun resetCheckoutState() {
         checkoutState.update {
-            it.copy(checkoutError = null, paymentMessage = null, addressError = null)
+            it.copy(
+                checkoutError = null,
+                paymentMessage = null,
+                addressError = null,
+                pendingAuthorizationUrl = null,
+                providerModeLabel = null
+            )
         }
     }
 }
