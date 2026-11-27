@@ -31,9 +31,9 @@ android {
         val mapboxToken = localProperties.getProperty("MAPBOX_ACCESS_TOKEN") ?: ""
         resValue("string", "mapbox_access_token", mapboxToken)
 
-        // Default true when local.properties is missing or the key is absent.
+        // Default false so a missing local.properties never ships mock data.
         val useMockData = localProperties
-            .getProperty("USE_MOCK_DATA", "true")
+            .getProperty("USE_MOCK_DATA", "false")
             .equals("true", ignoreCase = true)
         buildConfigField("boolean", "USE_MOCK_DATA", useMockData.toString())
 
@@ -55,6 +55,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Release builds never carry mock data, regardless of local.properties.
+            buildConfigField("boolean", "USE_MOCK_DATA", "false")
             buildConfigField(
                 "String",
                 "BASE_URL",

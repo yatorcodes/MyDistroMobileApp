@@ -416,7 +416,9 @@ fun CustomerLoginScreen(
 
                 Spacer(Modifier.height(12.dp))
 
-                PrototypeHint()
+                if (com.emmanuelyator.mydistro.BuildConfig.USE_MOCK_DATA) {
+                    PrototypeHint()
+                }
             }
         }
     }
