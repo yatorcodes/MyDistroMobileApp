@@ -67,17 +67,27 @@ class MockOrderRepository @Inject constructor() : OrderRepository {
 
     override suspend fun initiatePayment(
         orderId: String,
-        phoneNumber: String,
+        provider: com.emmanuelyator.mydistro.feature.customer.domain.PaymentProvider,
+        phoneNumber: String?,
         idempotencyKey: String
     ): DataResult<PaymentInitiateResponse> {
         delay(600)
         paymentRequestedAt.putIfAbsent(orderId, System.currentTimeMillis())
+        val isPaystack = provider == com.emmanuelyator.mydistro.feature.customer.domain.PaymentProvider.PAYSTACK
         return DataResult.Success(
             PaymentInitiateResponse(
                 paymentId = "pay-mock-$orderId",
-                mpesaCheckoutRequestId = "ws_CO_MOCK_$orderId",
+                mpesaCheckoutRequestId = if (isPaystack) null else "ws_CO_MOCK_$orderId",
                 status = "PENDING",
-                customerMessage = "Success. Request accepted for processing"
+                customerMessage = if (isPaystack) {
+                    "DEMO — NO MONEY TRANSFERRED. Open the sandbox checkout URL."
+                } else {
+                    "Success. Request accepted for processing"
+                },
+                provider = provider.apiValue,
+                authorizationUrl = if (isPaystack) "https://checkout.paystack.com/mock-$orderId" else null,
+                providerMode = "TEST",
+                paymentReference = if (isPaystack) "mock-ref-$orderId" else null
             )
         )
     }
@@ -104,7 +114,9 @@ class MockOrderRepository @Inject constructor() : OrderRepository {
                 paymentId = "pay-mock-$orderId",
                 status = status,
                 amount = order?.totalKes?.toDouble(),
-                mpesaReceiptNumber = if (status == "CONFIRMED") "QK7MOCK123" else null
+                mpesaReceiptNumber = if (status == "CONFIRMED") "QK7MOCK123" else null,
+                provider = "DARAJA",
+                providerMode = "TEST"
             )
         )
     }

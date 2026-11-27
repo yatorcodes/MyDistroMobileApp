@@ -84,18 +84,26 @@ fun CustomerOrderStatusRoute(
         }
         else -> {
             val payment = uiState.paymentDetail
+            val paymentStatus = uiState.paymentStatus
             val paymentStatusLabel = buildString {
-                val status = payment?.status ?: uiState.paymentStatus?.status
+                val status = payment?.status ?: paymentStatus?.status
                 if (status != null) {
                     append(
                         "Payment: ${com.emmanuelyator.mydistro.feature.customer.cart.CustomerCheckout.paymentStatusLabel(status)}"
                     )
                 }
-                (payment?.mpesaReceiptNumber ?: uiState.paymentStatus?.mpesaReceiptNumber)
+                val provider = payment?.provider ?: paymentStatus?.provider ?: payment?.method
+                provider?.let { append(" · $it") }
+                val mode = com.emmanuelyator.mydistro.feature.customer.cart.CustomerCheckout.providerModeLabel(
+                    payment?.providerMode ?: paymentStatus?.providerMode
+                )
+                mode?.let { append(" · $it") }
+                (payment?.mpesaReceiptNumber ?: paymentStatus?.mpesaReceiptNumber)
                     ?.let { append(" · Receipt $it") }
-                payment?.method?.let { append(" · $it") }
+                (payment?.paymentReference ?: paymentStatus?.paymentReference)
+                    ?.let { append(" · Ref $it") }
                 payment?.amount?.let { append(" · KSh ${it.toInt()}") }
-                uiState.paymentStatus?.failureReason?.let { append(" · $it") }
+                paymentStatus?.failureReason?.let { append(" · $it") }
             }.ifBlank { null }
 
             CustomerOrderStatusScreen(

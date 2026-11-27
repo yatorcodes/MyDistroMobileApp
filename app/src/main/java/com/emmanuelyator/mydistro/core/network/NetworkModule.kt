@@ -1,5 +1,6 @@
 package com.emmanuelyator.mydistro.core.network
 
+import com.google.gson.GsonBuilder
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -11,14 +12,6 @@ import retrofit2.converter.gson.GsonConverterFactory
 import com.emmanuelyator.mydistro.BuildConfig
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
-
-// TODO: point this at your real backend once it's deployed.
-// 10.0.2.2 is the special alias the Android emulator uses to reach
-// your computer's localhost — it will NOT work on a real device like
-// your A55. For testing on your phone against a backend running on
-// your laptop, use your laptop's actual LAN IP (e.g. http://192.168.x.x:8080/)
-// as long as the phone and laptop are on the same WiFi.
-private const val BASE_URL = "http://192.168.68.116:8081/"
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -56,12 +49,16 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit =
-        Retrofit.Builder()
-            .baseUrl(BASE_URL)
+    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+        // Omit nulls so Paystack initiate does not send phoneNumber: null.
+        val gson = GsonBuilder().create()
+        val baseUrl = BuildConfig.BASE_URL.let { if (it.endsWith("/")) it else "$it/" }
+        return Retrofit.Builder()
+            .baseUrl(baseUrl)
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
+    }
 
     @Provides
     @Singleton

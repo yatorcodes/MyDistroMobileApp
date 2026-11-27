@@ -264,7 +264,9 @@ fun DriverLoginScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            PrototypeHint()
+            if (com.emmanuelyator.mydistro.BuildConfig.USE_MOCK_DATA) {
+                PrototypeHint()
+            }
         }
     }
 }

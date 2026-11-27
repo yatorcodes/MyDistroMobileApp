@@ -68,15 +68,19 @@ class NetworkOrderRepository @Inject constructor(
 
     override suspend fun initiatePayment(
         orderId: String,
-        phoneNumber: String,
+        provider: com.emmanuelyator.mydistro.feature.customer.domain.PaymentProvider,
+        phoneNumber: String?,
         idempotencyKey: String
     ): DataResult<PaymentInitiateResponse> {
         return try {
             val response = api.initiatePayment(
-                PaymentInitiateRequest(
+                idempotencyKey = idempotencyKey,
+                request = PaymentInitiateRequest(
                     orderId = orderId,
-                    phoneNumber = phoneNumber,
-                    idempotencyKey = idempotencyKey
+                    phoneNumber = phoneNumber?.takeIf { it.isNotBlank() },
+                    idempotencyKey = idempotencyKey,
+                    provider = provider.apiValue,
+                    orderType = "CUSTOMER_ORDER"
                 )
             )
             val body = response.body()
