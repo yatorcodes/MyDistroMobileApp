@@ -156,10 +156,12 @@ fun CustomerHomeScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = if (uiState.searchQuery.isBlank()) {
-                            "No products in this category yet."
-                        } else {
-                            "No products match “${uiState.searchQuery}”."
+                        text = when {
+                            uiState.isLoading -> "Loading products…"
+                            !uiState.loadError.isNullOrBlank() -> uiState.loadError.orEmpty()
+                            uiState.searchQuery.isBlank() ->
+                                "No products are available to buy yet. A distributor has to publish stock first."
+                            else -> "No products match “${uiState.searchQuery}”."
                         },
                         style = MaterialTheme.typography.bodyLarge,
                         color = MyDistroTheme.colors.textSecondary

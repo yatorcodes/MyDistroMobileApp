@@ -26,6 +26,8 @@ data class BrowseUiState(
     val searchQuery: String = "",
     val products: List<Product> = emptyList(),
     val cartCount: Int = 0,
+    val isLoading: Boolean = false,
+    val loadError: String? = null,
     /** Parent strip vs leaf strip after tapping a group. */
     val showingSubcategories: Boolean = false
 ) {
@@ -90,11 +92,14 @@ class CustomerHomeViewModel @Inject constructor(
         }
     }
 
+    private val catalogStatus = MutableStateFlow(CatalogLoad(isLoading = true))
+
     val uiState: StateFlow<BrowseUiState> = combine(
         selection,
         products,
-        cartRepository.itemCount
-    ) { snap, productList, cartCount ->
+        cartRepository.itemCount,
+        catalogStatus
+    ) { snap, productList, cartCount, load ->
         BrowseUiState(
             groups = snap.groups,
             selectedGroupId = snap.groupId,
@@ -104,6 +109,8 @@ class CustomerHomeViewModel @Inject constructor(
             searchQuery = snap.query,
             products = productList,
             cartCount = cartCount,
+            isLoading = load.isLoading,
+            loadError = load.error,
             showingSubcategories = snap.drilled
         )
     }.stateIn(
@@ -118,6 +125,22 @@ class CustomerHomeViewModel @Inject constructor(
                 if (selectedGroupId.value == null && groups.isNotEmpty()) {
                     selectedGroupId.value = groups.first().id
                 }
+            }
+        }
+        refresh()
+    }
+
+    fun refresh() {
+        viewModelScope.launch {
+            catalogStatus.value = CatalogLoad(isLoading = true)
+            try {
+                catalogRepository.refresh()
+                catalogStatus.value = CatalogLoad(isLoading = false)
+            } catch (e: Exception) {
+                catalogStatus.value = CatalogLoad(
+                    isLoading = false,
+                    error = e.message ?: "Could not load products"
+                )
             }
         }
     }
@@ -148,6 +171,11 @@ class CustomerHomeViewModel @Inject constructor(
             cartRepository.addProduct(productId)
         }
     }
+
+    private data class CatalogLoad(
+        val isLoading: Boolean = false,
+        val error: String? = null
+    )
 
     private data class SelectionSnapshot(
         val groups: List<CategoryGroup>,
